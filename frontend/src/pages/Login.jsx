@@ -119,9 +119,7 @@ export default function Login() {
           </form>
 
           {/* Helper text */}
-          <p className="mt-6 text-center text-sm text-gray-500">
-            Par défaut: <span className="font-medium">admin</span> / <span className="font-medium">admin123</span>
-          </p>
+          
         </div>
 
         {/* Footer */}

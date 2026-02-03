@@ -124,7 +124,7 @@ class ApprovisionnementBase(BaseModel):
     dotation_id: int
     qte: float = Field(gt=0)
     km_precedent: int
-    km_actuel: int
+    km: int
 
 class ApprovisionnementCreate(ApprovisionnementBase):
     pass
@@ -145,7 +145,7 @@ class ApprovisionnementDetail(BaseModel):
     date: datetime
     qte: float
     km_precedent: int
-    km_actuel: int
+    km: int
     police: str
     nCivil: str
     marque: Optional[str]
@@ -164,7 +164,7 @@ class VehicleSearchResult(BaseModel):
     nCivil: str
     marque: Optional[str]
     carburant: str
-    km_actuel: int
+    km: int
     benificiaire: str
     fonction: str
     service: str

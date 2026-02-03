@@ -22,7 +22,7 @@ async def search_vehicle(
     with get_db() as conn:
         cur = get_db_cursor(conn)
         cur.execute("""
-            SELECT d.id as dotation_id, v.police, v.nCivil, v.marque, v.carburant, v.km as km_actuel,
+            SELECT d.id as dotation_id, v.police, v.nCivil, v.marque, v.carburant, v.km,
                    b.nom as benificiaire, b.fonction, s.nom as service, s.direction,
                    d.qte as quota, d.qte_consomme, d.reste,
                    COALESCE((SELECT qte FROM approvisionnement 
@@ -48,7 +48,7 @@ async def search_vehicle(
             "nCivil": result['ncivil'],
             "marque": result['marque'],
             "carburant": result['carburant'],
-            "km_actuel": result['km_actuel'],
+            "km": result['km'],
             "benificiaire": result['benificiaire'],
             "fonction": result['fonction'],
             "service": result['service'],
@@ -71,10 +71,10 @@ async def create_approvisionnement(
         try:
             cur.execute("""
                 INSERT INTO approvisionnement
-                (dotation_id, qte, km_precedent, km_actuel)
+                (dotation_id, qte, km_precedent, km)
                 VALUES (%s, %s, %s, %s)
                 RETURNING id
-            """, (appro.dotation_id, appro.qte, appro.km_precedent, appro.km_actuel))
+            """, (appro.dotation_id, appro.qte, appro.km_precedent, appro.km))
             
             result = cur.fetchone()
             conn.commit()
@@ -104,7 +104,7 @@ async def list_approvisionnements(
     with get_db() as conn:
         cur = get_db_cursor(conn)
         cur.execute("""
-            SELECT a.id, a.date, a.qte, a.km_precedent, a.km_actuel, a.anomalie,
+            SELECT a.id, a.date, a.qte, a.km_precedent, a.km, a.anomalie,
                    v.police, v.nCivil, v.marque, v.carburant,
                    b.nom as benificiaire, s.nom as service, s.direction,
                    d.qte as quota, d.qte_consomme, d.reste
@@ -124,7 +124,7 @@ async def list_approvisionnements(
             "date": row['date'],
             "qte": float(row['qte']),
             "km_precedent": row['km_precedent'],
-            "km_actuel": row['km_actuel'],
+            "km": row['km'],
             "police": row['police'],
             "nCivil": row['ncivil'],
             "marque": row['marque'],
@@ -147,7 +147,7 @@ async def list_by_service(
     with get_db() as conn:
         cur = get_db_cursor(conn)
         cur.execute("""
-            SELECT a.id, a.date, a.qte, a.km_precedent, a.km_actuel, a.anomalie,
+            SELECT a.id, a.date, a.qte, a.km_precedent, a.km, a.anomalie,
                    v.police, v.nCivil, v.marque, v.carburant,
                    b.nom as benificiaire, s.nom as service, s.direction,
                    d.qte as quota, d.qte_consomme, d.reste
@@ -167,7 +167,7 @@ async def list_by_service(
             "date": row['date'],
             "qte": float(row['qte']),
             "km_precedent": row['km_precedent'],
-            "km_actuel": row['km_actuel'],
+            "km": row['km'],
             "police": row['police'],
             "nCivil": row['ncivil'],
             "marque": row['marque'],
@@ -190,7 +190,7 @@ async def list_by_vehicle(
     with get_db() as conn:
         cur = get_db_cursor(conn)
         cur.execute("""
-            SELECT a.id, a.date, a.qte, a.km_precedent, a.km_actuel, a.anomalie,
+            SELECT a.id, a.date, a.qte, a.km_precedent, a.km, a.anomalie,
                    v.police, v.nCivil, v.marque, v.carburant,
                    b.nom as benificiaire, s.nom as service, s.direction,
                    d.qte as quota, d.qte_consomme, d.reste
@@ -210,7 +210,7 @@ async def list_by_vehicle(
             "date": row['date'],
             "qte": float(row['qte']),
             "km_precedent": row['km_precedent'],
-            "km_actuel": row['km_actuel'],
+            "km": row['km'],
             "police": row['police'],
             "nCivil": row['ncivil'],
             "marque": row['marque'],

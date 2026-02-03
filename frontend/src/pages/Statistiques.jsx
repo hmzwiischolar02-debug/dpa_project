@@ -5,7 +5,8 @@ import {
   FileText, 
   TrendingUp,
   Droplet,
-  Zap
+  Zap,
+  BarChart3
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -27,11 +28,12 @@ export default function Statistiques() {
     queryKey: ['dashboard'],
     queryFn: statsService.getDashboard,
   });
+  const { data: consommationJourRaw } = useQuery({
+  queryKey: ['consommation-jour'],
+  queryFn: statsService.getConsommationParJour,
+});
 
-  const { data: consommationJour } = useQuery({
-    queryKey: ['consommation-jour'],
-    queryFn: statsService.getConsommationParJour,
-  });
+const consommationJour = consommationJourRaw ? [...consommationJourRaw].reverse() : [];
 
   const { data: consommationCarburant } = useQuery({
     queryKey: ['consommation-carburant'],
