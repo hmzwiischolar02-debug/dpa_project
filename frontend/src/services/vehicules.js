@@ -3,10 +3,12 @@ import api from './api';
 // Vehicles Service
 export const vehiculesService = {
   /**
-   * Get all vehicles
+   * Get all vehicles with pagination and search
    */
-  async getAll(activeOnly = true) {
-    const response = await api.get('/vehicules/', { params: { active_only: activeOnly } });
+  async getAll({ page = 1, per_page = 10, active_only = true, search = null } = {}) {
+    const params = { page, per_page, active_only };
+    if (search) params.search = search;
+    const response = await api.get('/vehicules/', { params });
     return response.data;
   },
 
@@ -73,10 +75,12 @@ export const servicesService = {
 // Beneficiaires Service
 export const benificiairesService = {
   /**
-   * Get all beneficiaires
+   * Get all beneficiaires with pagination and search
    */
-  async getAll() {
-    const response = await api.get('/benificiaires');
+  async getAll({ page = 1, per_page = 10, search = null } = {}) {
+    const params = { page, per_page };
+    if (search) params.search = search;
+    const response = await api.get('/benificiaires', { params });
     return response.data;
   },
 

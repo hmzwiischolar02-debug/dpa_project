@@ -106,12 +106,23 @@ async def create_dotation_approvisionnement(
             ))
             
             result = cur.fetchone()
+            appro_id = result['id']
+            
+            # Auto-close dotation if quota reached
+            cur.execute("""
+                UPDATE dotation
+                SET cloture = TRUE
+                WHERE id = %s
+                AND qte_consomme >= qte
+                AND cloture = FALSE
+            """, (appro.dotation_id,))
+            
             conn.commit()
             
             return {
                 "success": True,
                 "message": "Approvisionnement DOTATION ajouté avec succès",
-                "id": result['id']
+                "id": appro_id
             }
             
         except psycopg2.errors.RaiseException as e:
@@ -164,113 +175,112 @@ async def create_mission_approvisionnement(
             conn.rollback()
             raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
 
-@router.get("/list", response_model=List[ApprovisionnementDetail])
+@router.get("/list", response_model=dict)
 async def list_approvisionnements(
-    skip: int = 0,
-    limit: int = 1000,
-    type_filter: Optional[str] = None,
+    page: int = 1,
+    per_page: int = 20,
+    type_filter: str = None,
+    date_from: str = None,
+    date_to: str = None,
+    mois: int = None,
+    annee: int = None,
     current_user: dict = Depends(get_current_user)
 ):
-    """List all approvisionnements (both DOTATION and MISSION types)"""
+    """List all approvisionnements with filters and pagination"""
     with get_db() as conn:
         cur = get_db_cursor(conn)
         
-        # Combined query using UNION for both types
-        query = """
-            SELECT 
-                id, 'DOTATION' as type_approvi, date, numero_bon, qte, km_precedent, km, anomalie,
-                police, nCivil, marque, carburant, 
-                COALESCE(vhc_provisoire, police) as vehicule_utilise,
-                vhc_provisoire,
-                benificiaire_nom, benificiaire_fonction, service_nom as service_nom, service_direction as direction,
-                dotation_id, mois, annee, dotation_qte as quota, qte_consomme, dotation_reste as reste,
-                NULL as matricule_conducteur, NULL as service_externe,
-                NULL as ville_origine, NULL as ordre_mission, NULL as police_vehicule,
-                observations
-            FROM v_appro_dotation
-        """
+        # Build query
+        where_clauses = []
+        params = []
         
-        if type_filter == 'MISSION':
-            query = """
-                SELECT 
-                    id, 'MISSION' as type_approvi, date, numero_bon, qte, km_precedent, km, anomalie,
-                    NULL as police, NULL as nCivil, NULL as marque, NULL as carburant,
-                    police_vehicule as vehicule_utilise, NULL as vhc_provisoire,
-                    NULL as benificiaire_nom, NULL as benificiaire_fonction,
-                    NULL as service_nom, NULL as direction,
-                    NULL as dotation_id, NULL as mois, NULL as annee, NULL as quota,
-                    NULL as qte_consomme, NULL as reste,
-                    matricule_conducteur, service_externe, ville_origine,
-                    ordre_mission, police_vehicule, observations
-                FROM v_appro_mission
-            """
-        elif type_filter is None:
-            query = """
-                SELECT * FROM (
-                    SELECT 
-                        id, 'DOTATION' as type_approvi, date, numero_bon, qte, km_precedent, km, anomalie,
-                        police, nCivil, marque, carburant,
-                        COALESCE(vhc_provisoire, police) as vehicule_utilise,
-                        vhc_provisoire,
-                        benificiaire_nom, benificiaire_fonction, service_nom, service_direction as direction,
-                        dotation_id, mois, annee, dotation_qte as quota, qte_consomme, dotation_reste as reste,
-                        NULL as matricule_conducteur, NULL as service_externe,
-                        NULL as ville_origine, NULL as ordre_mission, NULL as police_vehicule,
-                        observations
-                    FROM v_appro_dotation
-                    UNION ALL
-                    SELECT 
-                        id, 'MISSION' as type_approvi, date, numero_bon, qte, km_precedent, km, anomalie,
-                        NULL as police, NULL as nCivil, NULL as marque, NULL as carburant,
-                        police_vehicule as vehicule_utilise, NULL as vhc_provisoire,
-                        NULL as benificiaire_nom, NULL as benificiaire_fonction,
-                        NULL as service_nom, NULL as direction,
-                        NULL as dotation_id, NULL as mois, NULL as annee, NULL as quota,
-                        NULL as qte_consomme, NULL as reste,
-                        matricule_conducteur, service_externe, ville_origine,
-                        ordre_mission, police_vehicule, observations
-                    FROM v_appro_mission
-                ) combined
-            """
+        if type_filter and type_filter != 'all':
+            where_clauses.append("type_approvi = %s")
+            params.append(type_filter)
         
-        query += " ORDER BY date DESC LIMIT %s OFFSET %s"
+        if date_from:
+            where_clauses.append("date >= %s")
+            params.append(date_from)
         
-        cur.execute(query, (limit, skip))
+        if date_to:
+            where_clauses.append("date <= %s")
+            params.append(date_to)
+        
+        if mois and annee:
+            where_clauses.append("EXTRACT(MONTH FROM date) = %s AND EXTRACT(YEAR FROM date) = %s")
+            params.extend([mois, annee])
+        elif annee:
+            where_clauses.append("EXTRACT(YEAR FROM date) = %s")
+            params.append(annee)
+        
+        where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+        
+        # Count total
+        count_query = f"SELECT COUNT(*) as total FROM approvisionnement {where_clause}"
+        cur.execute(count_query, params)
+        total = cur.fetchone()['total']
+        
+        # Get paginated results
+        offset = (page - 1) * per_page
+        cur.execute(f"""
+            SELECT * FROM approvisionnement
+            {where_clause}
+            ORDER BY date DESC, id DESC
+            LIMIT %s OFFSET %s
+        """, params + [per_page, offset])
+        
         results = cur.fetchall()
-        
-        return [{
-            "id": row['id'],
-            "type_approvi": row['type_approvi'],
-            "date": row['date'],
-            "qte": float(row['qte']),
-            "km_precedent": row['km_precedent'],
-            "km": row['km'],
-            "anomalie": row['anomalie'],
-            "numero_bon": row['numero_bon'],
-            "police": row.get('police'),
-            "nCivil": row.get('ncivil'),
-            "marque": row.get('marque'),
-            "carburant": row.get('carburant'),
-            "vehicule_utilise": row.get('vehicule_utilise'),
-            "vhc_provisoire": row.get('vhc_provisoire'),
-            "benificiaire_nom": row.get('benificiaire_nom'),
-            "service_nom": row.get('service_nom'),
-            "direction": row.get('direction'),
-            "dotation_id": row.get('dotation_id'),
-            "mois": row.get('mois'),
-            "annee": row.get('annee'),
-            "quota": row.get('quota'),
-            "qte_consomme": float(row['qte_consomme']) if row.get('qte_consomme') else None,
-            "reste": float(row['reste']) if row.get('reste') else None,
-            "matricule_conducteur": row.get('matricule_conducteur'),
-            "service_externe": row.get('service_externe'),
-            "ville_origine": row.get('ville_origine'),
-            "ordre_mission": row.get('ordre_mission'),
-            "police_vehicule": row.get('police_vehicule'),
-            "observations": row.get('observations')
-        } for row in results]
+        return {
+            "items": [dict(r) for r in results],
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "pages": (total + per_page - 1) // per_page if total > 0 else 0
+        }
 
-@router.delete("/{appro_id}")
+@router.get("/dotation-list", response_model=List[dict])
+async def list_dotation_approvisionnements(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get list of DOTATION approvisionnements"""
+    with get_db() as conn:
+        cur = get_db_cursor(conn)
+        cur.execute("""
+            SELECT 
+                a.id, a.type_approvi, a.date, a.qte, a.km_precedent, a.km,
+                v.police, b.nom as benificiaire_nom, s.nom as service_nom
+            FROM approvisionnement a
+            LEFT JOIN dotation d ON a.dotation_id = d.id
+            LEFT JOIN vehicule v ON d.vehicule_id = v.id
+            LEFT JOIN benificiaire b ON d.benificiaire_id = b.id
+            LEFT JOIN service s ON b.service_id = s.id
+            WHERE a.type_approvi = 'DOTATION'
+            ORDER BY a.date DESC
+            LIMIT 100
+        """)
+        results = cur.fetchall()
+        return [dict(r) for r in results]
+
+@router.get("/mission-list", response_model=List[dict])
+async def list_mission_approvisionnements(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get list of MISSION approvisionnements"""
+    with get_db() as conn:
+        cur = get_db_cursor(conn)
+        cur.execute("""
+            SELECT 
+                id, type_approvi, date, qte, km_precedent, km,
+                police_vehicule, matricule_conducteur, service_externe
+            FROM approvisionnement
+            WHERE type_approvi = 'MISSION'
+            ORDER BY date DESC
+            LIMIT 100
+        """)
+        results = cur.fetchall()
+        return [dict(r) for r in results]
+
+@router.delete("/{appro_id}", response_model=dict)
 async def delete_approvisionnement(
     appro_id: int,
     current_user: dict = Depends(get_current_user)

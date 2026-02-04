@@ -6,24 +6,50 @@ from app.api.auth import get_current_user
 
 router = APIRouter(prefix="/vehicules", tags=["Vehicules"])
 
-@router.get("/", response_model=List[Vehicule])
+@router.get("/", response_model=dict)
 async def list_vehicules(
+    page: int = 1,
+    per_page: int = 10,
     active_only: bool = True,
+    search: str = None,
     current_user: dict = Depends(get_current_user)
 ):
-    """List all vehicles"""
+    """List all vehicles with pagination and search"""
     with get_db() as conn:
         cur = get_db_cursor(conn)
         
-        query = "SELECT * FROM vehicule"
-        if active_only:
-            query += " WHERE actif=TRUE"
-        query += " ORDER BY police"
+        # Build query
+        where_clauses = []
+        params = []
         
-        cur.execute(query)
+        if active_only:
+            where_clauses.append("actif=TRUE")
+        
+        if search:
+            where_clauses.append("(police ILIKE %s OR ncivil ILIKE %s OR marque ILIKE %s)")
+            search_param = f"%{search}%"
+            params.extend([search_param, search_param, search_param])
+        
+        where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+        
+        # Get total count
+        count_query = f"SELECT COUNT(*) as total FROM vehicule {where_clause}"
+        cur.execute(count_query, params)
+        total = cur.fetchone()['total']
+        
+        # Get paginated results
+        offset = (page - 1) * per_page
+        list_query = f"SELECT * FROM vehicule {where_clause} ORDER BY police LIMIT %s OFFSET %s"
+        cur.execute(list_query, params + [per_page, offset])
         results = cur.fetchall()
         
-        return [dict(r) for r in results]
+        return {
+            "items": [dict(r) for r in results],
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "pages": (total + per_page - 1) // per_page if total > 0 else 0
+        }
 
 @router.get("/{vehicule_id}", response_model=Vehicule)
 async def get_vehicule(

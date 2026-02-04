@@ -10,18 +10,42 @@ export const dotationService = {
   },
 
   /**
-   * Get active dotations
+   * Get active dotations with pagination
    */
-  async getActive() {
-    const response = await api.get('/dotation/active');
+  async getActive({ page = 1, per_page = 10, search = null } = {}) {
+    const params = { page, per_page };
+    if (search) params.search = search;
+    const response = await api.get('/dotation/active', { params });
     return response.data;
   },
 
   /**
-   * Get archived dotations
+   * Get archived dotations with pagination
    */
-  async getArchived() {
-    const response = await api.get('/dotation/archived');
+  async getArchived({ page = 1, per_page = 10, search = null } = {}) {
+    const params = { page, per_page };
+    if (search) params.search = search;
+    const response = await api.get('/dotation/archived', { params });
+    return response.data;
+  },
+
+  /**
+   * Get available vehicles (without active dotation)
+   */
+  async getAvailableVehicles(mois, annee) {
+    const response = await api.get('/dotation/available-vehicles', {
+      params: { mois, annee }
+    });
+    return response.data;
+  },
+
+  /**
+   * Get available beneficiaires (without active dotation)
+   */
+  async getAvailableBenificiaires(mois, annee) {
+    const response = await api.get('/dotation/available-benificiaires', {
+      params: { mois, annee }
+    });
     return response.data;
   },
 

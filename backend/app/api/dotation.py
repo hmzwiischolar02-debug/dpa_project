@@ -82,12 +82,19 @@ async def get_available_benificiaires(
         results = cur.fetchall()
         return [dict(r) for r in results]
 
-@router.get("/active", response_model=List[DotationDetail])
-async def get_active_dotations(current_user: dict = Depends(get_current_user)):
-    """Get all active (non-closed) dotations"""
+@router.get("/active", response_model=dict)
+async def get_active_dotations(
+    page: int = 1,
+    per_page: int = 10,
+    search: str = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all active (non-closed) dotations with pagination and search"""
     with get_db() as conn:
         cur = get_db_cursor(conn)
-        cur.execute("""
+        
+        # Build base query
+        base_query = """
             SELECT 
                 d.id, d.vehicule_id, v.police, v.nCivil, v.marque, v.carburant,
                 b.nom AS benificiaire_nom, b.fonction AS benificiaire_fonction,
@@ -98,35 +105,66 @@ async def get_active_dotations(current_user: dict = Depends(get_current_user)):
             JOIN benificiaire b ON d.benificiaire_id = b.id
             JOIN service s ON b.service_id = s.id
             WHERE d.cloture = FALSE
-            ORDER BY s.nom, v.police
-        """)
+        """
+        
+        params = []
+        if search:
+            base_query += """ AND (
+                v.police ILIKE %s OR 
+                b.nom ILIKE %s OR 
+                s.nom ILIKE %s
+            )"""
+            search_param = f"%{search}%"
+            params = [search_param, search_param, search_param]
+        
+        # Get total count
+        count_query = base_query.replace("SELECT d.id, d.vehicule_id, v.police, v.nCivil, v.marque, v.carburant, b.nom AS benificiaire_nom, b.fonction AS benificiaire_fonction, s.nom AS service_nom, s.direction, d.mois, d.annee, d.qte, d.qte_consomme, d.reste, d.cloture", "SELECT COUNT(*) as total")
+        cur.execute(count_query, params)
+        total = cur.fetchone()['total']
+        
+        # Get paginated results
+        offset = (page - 1) * per_page
+        list_query = base_query + " ORDER BY s.nom, v.police LIMIT %s OFFSET %s"
+        cur.execute(list_query, params + [per_page, offset])
         results = cur.fetchall()
         
-        return [{
-            "id": row['id'],
-            "vehicule_id": row['vehicule_id'],
-            "police": row['police'],
-            "nCivil": row['ncivil'],
-            "marque": row['marque'],
-            "carburant": row['carburant'],
-            "benificiaire_nom": row['benificiaire_nom'],
-            "benificiaire_fonction": row['benificiaire_fonction'],
-            "service_nom": row['service_nom'],
-            "direction": row['direction'],
-            "mois": row['mois'],
-            "annee": row['annee'],
-            "qte": row['qte'],
-            "qte_consomme": float(row['qte_consomme']),
-            "reste": float(row['reste']),
-            "cloture": row['cloture']
-        } for row in results]
+        return {
+            "items": [{
+                "id": row['id'],
+                "vehicule_id": row['vehicule_id'],
+                "police": row['police'],
+                "nCivil": row['ncivil'],
+                "marque": row['marque'],
+                "carburant": row['carburant'],
+                "benificiaire_nom": row['benificiaire_nom'],
+                "benificiaire_fonction": row['benificiaire_fonction'],
+                "service_nom": row['service_nom'],
+                "direction": row['direction'],
+                "mois": row['mois'],
+                "annee": row['annee'],
+                "qte": row['qte'],
+                "qte_consomme": float(row['qte_consomme']),
+                "reste": float(row['reste']),
+                "cloture": row['cloture']
+            } for row in results],
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "pages": (total + per_page - 1) // per_page if total > 0 else 0
+        }
 
-@router.get("/archived", response_model=List[DotationDetail])
-async def get_archived_dotations(current_user: dict = Depends(get_current_user)):
-    """Get all archived (closed) dotations"""
+@router.get("/archived", response_model=dict)
+async def get_archived_dotations(
+    page: int = 1,
+    per_page: int = 10,
+    search: str = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all archived (closed) dotations with pagination"""
     with get_db() as conn:
         cur = get_db_cursor(conn)
-        cur.execute("""
+        
+        base_query = """
             SELECT 
                 d.id, d.vehicule_id, v.police, v.nCivil, v.marque, v.carburant,
                 b.nom AS benificiaire_nom, b.fonction AS benificiaire_fonction,
@@ -137,28 +175,53 @@ async def get_archived_dotations(current_user: dict = Depends(get_current_user))
             JOIN benificiaire b ON d.benificiaire_id = b.id
             JOIN service s ON b.service_id = s.id
             WHERE d.cloture = TRUE
-            ORDER BY d.annee DESC, d.mois DESC, s.nom, v.police
-        """)
+        """
+        
+        params = []
+        if search:
+            base_query += """ AND (
+                v.police ILIKE %s OR 
+                b.nom ILIKE %s OR 
+                s.nom ILIKE %s
+            )"""
+            search_param = f"%{search}%"
+            params = [search_param, search_param, search_param]
+        
+        # Count
+        count_query = base_query.replace("SELECT d.id, d.vehicule_id, v.police, v.nCivil, v.marque, v.carburant, b.nom AS benificiaire_nom, b.fonction AS benificiaire_fonction, s.nom AS service_nom, s.direction, d.mois, d.annee, d.qte, d.qte_consomme, d.reste, d.cloture", "SELECT COUNT(*) as total")
+        cur.execute(count_query, params)
+        total = cur.fetchone()['total']
+        
+        # Paginated results
+        offset = (page - 1) * per_page
+        list_query = base_query + " ORDER BY d.annee DESC, d.mois DESC, s.nom, v.police LIMIT %s OFFSET %s"
+        cur.execute(list_query, params + [per_page, offset])
         results = cur.fetchall()
         
-        return [{
-            "id": row['id'],
-            "vehicule_id": row['vehicule_id'],
-            "police": row['police'],
-            "nCivil": row['ncivil'],
-            "marque": row['marque'],
-            "carburant": row['carburant'],
-            "benificiaire_nom": row['benificiaire_nom'],
-            "benificiaire_fonction": row['benificiaire_fonction'],
-            "service_nom": row['service_nom'],
-            "direction": row['direction'],
-            "mois": row['mois'],
-            "annee": row['annee'],
-            "qte": row['qte'],
-            "qte_consomme": float(row['qte_consomme']),
-            "reste": float(row['reste']),
-            "cloture": row['cloture']
-        } for row in results]
+        return {
+            "items": [{
+                "id": row['id'],
+                "vehicule_id": row['vehicule_id'],
+                "police": row['police'],
+                "nCivil": row['ncivil'],
+                "marque": row['marque'],
+                "carburant": row['carburant'],
+                "benificiaire_nom": row['benificiaire_nom'],
+                "benificiaire_fonction": row['benificiaire_fonction'],
+                "service_nom": row['service_nom'],
+                "direction": row['direction'],
+                "mois": row['mois'],
+                "annee": row['annee'],
+                "qte": row['qte'],
+                "qte_consomme": float(row['qte_consomme']),
+                "reste": float(row['reste']),
+                "cloture": row['cloture']
+            } for row in results],
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "pages": (total + per_page - 1) // per_page if total > 0 else 0
+        }
 
 @router.delete("/{dotation_id}")
 async def delete_dotation(

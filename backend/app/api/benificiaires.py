@@ -6,22 +6,60 @@ from app.api.auth import get_current_user
 
 router = APIRouter(prefix="/benificiaires", tags=["Benificiaires"])
 
-@router.get("/", response_model=List[dict])
-async def list_benificiaires(current_user: dict = Depends(get_current_user)):
-    """List all beneficiaries with service info"""
+@router.get("/", response_model=dict)
+async def list_benificiaires(
+    page: int = 1,
+    per_page: int = 10,
+    search: str = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """List all beneficiaries with service info, pagination and search"""
     with get_db() as conn:
         cur = get_db_cursor(conn)
-        cur.execute("""
+        
+        # Build query with search
+        base_query = """
             SELECT 
                 b.id, b.matricule, b.nom, b.fonction, b.service_id,
-                s.nom as service_nom, s.direction
+                COALESCE(s.nom, 'N/A') as service_nom, 
+                COALESCE(s.direction, 'N/A') as direction
             FROM benificiaire b
             LEFT JOIN service s ON b.service_id = s.id
-            ORDER BY b.nom
-        """)
+        """
+        
+        where_clause = ""
+        params = []
+        
+        if search:
+            where_clause = """
+                WHERE (
+                    b.nom ILIKE %s OR 
+                    b.fonction ILIKE %s OR
+                    s.nom ILIKE %s OR
+                    s.direction ILIKE %s
+                )
+            """
+            search_param = f"%{search}%"
+            params = [search_param, search_param, search_param, search_param]
+        
+        # Get total count
+        count_query = f"SELECT COUNT(*) as total FROM benificiaire b LEFT JOIN service s ON b.service_id = s.id {where_clause}"
+        cur.execute(count_query, params)
+        total = cur.fetchone()['total']
+        
+        # Get paginated results
+        offset = (page - 1) * per_page
+        list_query = f"{base_query} {where_clause} ORDER BY b.nom LIMIT %s OFFSET %s"
+        cur.execute(list_query, params + [per_page, offset])
         results = cur.fetchall()
         
-        return [dict(r) for r in results]
+        return {
+            "items": [dict(r) for r in results],
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "pages": (total + per_page - 1) // per_page if total > 0 else 0
+        }
 
 @router.get("/{benificiaire_id}", response_model=Benificiaire)
 async def get_benificiaire(
