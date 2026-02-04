@@ -65,14 +65,7 @@ async def list_directions(current_user: dict = Depends(get_current_user)):
         results = cur.fetchall()
         return [r['direction'] for r in results]
 
-@router.get("/benificiaires", response_model=List[Benificiaire])
-async def list_benificiaires(current_user: dict = Depends(get_current_user)):
-    """List all beneficiaires"""
-    with get_db() as conn:
-        cur = get_db_cursor(conn)
-        cur.execute("SELECT * FROM benificiaire ORDER BY nom")
-        results = cur.fetchall()
-        return [dict(r) for r in results]
+
 
 @router.get("/benificiaires/{benificiaire_id}", response_model=Benificiaire)
 async def get_benificiaire(

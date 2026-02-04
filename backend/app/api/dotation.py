@@ -117,10 +117,16 @@ async def get_active_dotations(
             search_param = f"%{search}%"
             params = [search_param, search_param, search_param]
         
-        # Get total count
-        count_query = base_query.replace("SELECT d.id, d.vehicule_id, v.police, v.nCivil, v.marque, v.carburant, b.nom AS benificiaire_nom, b.fonction AS benificiaire_fonction, s.nom AS service_nom, s.direction, d.mois, d.annee, d.qte, d.qte_consomme, d.reste, d.cloture", "SELECT COUNT(*) as total")
-        cur.execute(count_query, params)
-        total = cur.fetchone()['total']
+        # Get total count - simpler query without JOINs
+        count_query = "SELECT COUNT(*) FROM dotation WHERE cloture = FALSE"
+        
+        try:
+            cur.execute(count_query)
+            result = cur.fetchone()
+            total = result[0] if result else 0  # COUNT returns tuple, not dict
+        except Exception as e:
+            print(f"Count query error: {e}")
+            total = 0
         
         # Get paginated results
         offset = (page - 1) * per_page
@@ -187,10 +193,16 @@ async def get_archived_dotations(
             search_param = f"%{search}%"
             params = [search_param, search_param, search_param]
         
-        # Count
-        count_query = base_query.replace("SELECT d.id, d.vehicule_id, v.police, v.nCivil, v.marque, v.carburant, b.nom AS benificiaire_nom, b.fonction AS benificiaire_fonction, s.nom AS service_nom, s.direction, d.mois, d.annee, d.qte, d.qte_consomme, d.reste, d.cloture", "SELECT COUNT(*) as total")
-        cur.execute(count_query, params)
-        total = cur.fetchone()['total']
+        # Count - simpler query
+        count_query = "SELECT COUNT(*) FROM dotation WHERE cloture = TRUE"
+        
+        try:
+            cur.execute(count_query)
+            result = cur.fetchone()
+            total = result[0] if result else 0
+        except Exception as e:
+            print(f"Count query error: {e}")
+            total = 0
         
         # Paginated results
         offset = (page - 1) * per_page

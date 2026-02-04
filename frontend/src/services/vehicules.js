@@ -9,6 +9,7 @@ export const vehiculesService = {
     const params = { page, per_page, active_only };
     if (search) params.search = search;
     const response = await api.get('/vehicules/', { params });
+    // Return full response object for pagination data
     return response.data;
   },
 
@@ -81,6 +82,7 @@ export const benificiairesService = {
     const params = { page, per_page };
     if (search) params.search = search;
     const response = await api.get('/benificiaires', { params });
+    // Return full response object for pagination data
     return response.data;
   },
 

@@ -1,16 +1,22 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileText, CheckCircle, XCircle, Plus, Edit2, Trash2, Lock, Unlock } from 'lucide-react';
+import { FileText, CheckCircle, XCircle, Plus, Edit2, Trash2, Lock, Unlock, Search } from 'lucide-react';
 import { dotationService } from '../services/dotation';
 import { vehiculesService, benificiairesService } from '../services/vehicules';
 import { getUser } from '../services/auth';
 import ReadOnlyBanner from '../components/ReadOnlyBanner';
+import Pagination from '../components/Pagination';
+import SearchInput from '../components/SearchInput';
 import toast from 'react-hot-toast';
 
 export default function Dotation() {
   const [activeTab, setActiveTab] = useState('active');
   const [showForm, setShowForm] = useState(false);
   const [editingDotation, setEditingDotation] = useState(null);
+  const [page, setPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
+  const perPage = 20;
+  
   const [formData, setFormData] = useState({
     vehicule_id: '',
     benificiaire_id: '',
@@ -23,19 +29,28 @@ export default function Dotation() {
   const isAdmin = user?.role === 'ADMIN';
   const queryClient = useQueryClient();
 
-  // Fetch active dotations
-  const { data: activeDotations, isLoading: loadingActive } = useQuery({
-    queryKey: ['dotations', 'active'],
-    queryFn: () => dotationService.getActive(),
+  // Fetch active dotations with pagination and search
+  const { data: activeDotationsData, isLoading: loadingActive } = useQuery({
+    queryKey: ['dotations', 'active', page, searchTerm],
+    queryFn: () => dotationService.getActive({ page, per_page: perPage, search: searchTerm }),
     enabled: activeTab === 'active'
   });
 
-  // Fetch archived dotations
-  const { data: archivedDotations, isLoading: loadingArchived } = useQuery({
-    queryKey: ['dotations', 'archived'],
-    queryFn: () => dotationService.getArchived(),
+  // Fetch archived dotations with pagination and search
+  const { data: archivedDotationsData, isLoading: loadingArchived } = useQuery({
+    queryKey: ['dotations', 'archived', page, searchTerm],
+    queryFn: () => dotationService.getArchived({ page, per_page: perPage, search: searchTerm }),
     enabled: activeTab === 'archived'
   });
+
+  // Extract actual data arrays
+  const activeDotations = Array.isArray(activeDotationsData) ? activeDotationsData : (activeDotationsData?.items || []);
+  const archivedDotations = Array.isArray(archivedDotationsData) ? archivedDotationsData : (archivedDotationsData?.items || []);
+  
+  // Pagination data
+  const paginationData = activeTab === 'active' ? activeDotationsData : archivedDotationsData;
+  const totalPages = paginationData?.pages || 1;
+  const totalItems = paginationData?.total || 0;
 
   // Fetch vehicles for form
   const { data: vehicles } = useQuery({
@@ -335,6 +350,20 @@ export default function Dotation() {
         </button>
       </div>
 
+      {/* Search Bar */}
+      <div className="card p-4">
+        <div className="flex items-center gap-4">
+          <SearchInput
+            value={searchTerm}
+            onChange={(value) => {
+              setSearchTerm(value);
+              setPage(1); // Reset to page 1 when searching
+            }}
+            placeholder="Rechercher par véhicule, bénéficiaire, service..."
+          />
+        </div>
+      </div>
+
       {/* Table */}
       <div className="card overflow-hidden">
         {isLoading ? (
@@ -351,7 +380,7 @@ export default function Dotation() {
                   <th className="px-6 py-3 text-left table-header">Bénéficiaire</th>
                   <th className="px-6 py-3 text-left table-header">Service</th>
                   <th className="px-6 py-3 text-left table-header">Période</th>
-                  <th className="px-6 py-3 text-left table-header">Qte dotation</th>
+                  <th className="px-6 py-3 text-left table-header">Quota</th>
                   <th className="px-6 py-3 text-left table-header">Consommé</th>
                   <th className="px-6 py-3 text-left table-header">Reste</th>
                   <th className="px-6 py-3 text-left table-header">Statut</th>
@@ -465,6 +494,17 @@ export default function Dotation() {
         )}
       </div>
 
+      {/* Pagination */}
+      {currentData && currentData.length > 0 && totalPages > 1 && (
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          totalItems={totalItems}
+          perPage={perPage}
+        />
+      )}
+
       {/* Stats Summary */}
       {currentData && currentData.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -473,7 +513,7 @@ export default function Dotation() {
             <p className="text-2xl font-bold text-blue-900">{currentData.length}</p>
           </div>
           <div className="card p-4 bg-gradient-to-br from-green-50 to-green-100">
-            <p className="text-sm text-green-600 mb-1">Qte dotation Total</p>
+            <p className="text-sm text-green-600 mb-1">Quota Total</p>
             <p className="text-2xl font-bold text-green-900">
               {currentData.reduce((sum, d) => sum + d.qte, 0)} L
             </p>

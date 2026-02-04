@@ -40,6 +40,7 @@ export const approvisionnementService = {
       params.type_filter = type_filter;
     }
     const response = await api.get('/approvisionnement/list', { params });
+    // Return full response object for pagination data
     return response.data;
   },
 

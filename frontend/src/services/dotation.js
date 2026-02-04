@@ -12,20 +12,22 @@ export const dotationService = {
   /**
    * Get active dotations with pagination
    */
-  async getActive({ page = 1, per_page = 10, search = null } = {}) {
+  async getActive({ page = 1, per_page = 1000, search = null } = {}) {
     const params = { page, per_page };
     if (search) params.search = search;
     const response = await api.get('/dotation/active', { params });
+    // Return full response object for pagination data
     return response.data;
   },
 
   /**
    * Get archived dotations with pagination
    */
-  async getArchived({ page = 1, per_page = 10, search = null } = {}) {
+  async getArchived({ page = 1, per_page = 1000, search = null } = {}) {
     const params = { page, per_page };
     if (search) params.search = search;
     const response = await api.get('/dotation/archived', { params });
+    // Return full response object for pagination data
     return response.data;
   },
 

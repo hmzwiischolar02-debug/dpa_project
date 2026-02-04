@@ -40,7 +40,8 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
   });
 
   // Filter and search
-  const filteredData = approvisionnements?.filter(item => {
+  const approvArray = Array.isArray(approvisionnements) ? approvisionnements : (approvisionnements?.items || []);
+  const filteredData = approvArray.filter(item => {
     const matchesSearch = searchTerm === '' || 
       item.police?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.benificiaire_nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -49,7 +50,7 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
       item.matricule_conducteur?.toLowerCase().includes(searchTerm.toLowerCase());
     
     return matchesSearch;
-  }) || [];
+  });
 
   // Pagination
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);

@@ -1,13 +1,19 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Car, Plus, Edit2, Trash2, Filter } from 'lucide-react';
+import { Car, Plus, Edit2, Trash2, Filter, Search } from 'lucide-react';
 import { vehiculesService } from '../services/vehicules';
+import Pagination from '../components/Pagination';
+import SearchInput from '../components/SearchInput';
 import toast from 'react-hot-toast';
 
 export default function Vehicules() {
   const [filterFuel, setFilterFuel] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState(null);
+  const [page, setPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
+  const perPage = 20;
+  
   const [formData, setFormData] = useState({
     police: '',
     nCivil: '',
@@ -18,11 +24,16 @@ export default function Vehicules() {
 
   const queryClient = useQueryClient();
 
-  // Fetch vehicles
-  const { data: vehicles, isLoading } = useQuery({
-    queryKey: ['vehicles'],
-    queryFn: () => vehiculesService.getAll(true)
+  // Fetch vehicles with pagination and search
+  const { data: vehiclesData, isLoading } = useQuery({
+    queryKey: ['vehicles', page, searchTerm],
+    queryFn: () => vehiculesService.getAll({ page, per_page: perPage, active_only: true, search: searchTerm })
   });
+
+  // Extract data
+  const vehicles = Array.isArray(vehiclesData) ? vehiclesData : (vehiclesData?.items || []);
+  const totalPages = vehiclesData?.pages || 1;
+  const totalItems = vehiclesData?.total || 0;
 
   // Create/Update mutation
   const saveMutation = useMutation({
@@ -231,32 +242,33 @@ export default function Vehicules() {
         </div>
       )}
 
-      {/* Filter */}
+      {/* Filter and Search */}
       <div className="card p-4">
-        <div className="flex items-center gap-4">
-          <Filter className="h-5 w-5 text-gray-400" />
-          <div className="flex gap-2">
-            <button
-              onClick={() => setFilterFuel('all')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filterFuel === 'all'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Tous ({vehicles?.length || 0})
-            </button>
-            <button
-              onClick={() => setFilterFuel('gazoil')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filterFuel === 'gazoil'
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-              }`}
-            >
-              Gazoil ({vehicles?.filter(v => v.carburant === 'gazoil').length || 0})
-            </button>
-            <button
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+          <div className="flex items-center gap-4 flex-1">
+            <Filter className="h-5 w-5 text-gray-400" />
+            <div className="flex gap-2">
+              <button
+                onClick={() => setFilterFuel('all')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  filterFuel === 'all'
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Tous ({vehicles?.length || 0})
+              </button>
+              <button
+                onClick={() => setFilterFuel('gazoil')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  filterFuel === 'gazoil'
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                }`}
+              >
+                Gazoil ({vehicles?.filter(v => v.carburant === 'gazoil').length || 0})
+              </button>
+              <button
               onClick={() => setFilterFuel('essence')}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                 filterFuel === 'essence'
@@ -266,6 +278,17 @@ export default function Vehicules() {
             >
               Essence ({vehicles?.filter(v => v.carburant === 'essence').length || 0})
             </button>
+          </div>
+          </div>
+          <div className="flex-1">
+            <SearchInput
+              value={searchTerm}
+              onChange={(value) => {
+                setSearchTerm(value);
+                setPage(1);
+              }}
+              placeholder="Rechercher par police, n° civil, marque..."
+            />
           </div>
         </div>
       </div>
@@ -363,6 +386,17 @@ export default function Vehicules() {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {filteredVehicles.length > 0 && totalPages > 1 && (
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          totalItems={totalItems}
+          perPage={perPage}
+        />
+      )}
     </div>
   );
 }

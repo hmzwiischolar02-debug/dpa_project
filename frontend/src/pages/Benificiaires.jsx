@@ -1,14 +1,20 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Plus, Edit2, Trash2, UserCheck } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, UserCheck, Search } from 'lucide-react';
 import { benificiairesService } from '../services/vehicules';
 import { getUser } from '../services/auth';
+import Pagination from '../components/Pagination';
+import SearchInput from '../components/SearchInput';
 import toast from 'react-hot-toast';
 
 export default function Benificiaires() {
   const [showForm, setShowForm] = useState(false);
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [editingBenificiaire, setEditingBenificiaire] = useState(null);
+  const [page, setPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
+  const perPage = 20;
+  
   const [formData, setFormData] = useState({
     nom: '',
     fonction: '',
@@ -23,11 +29,16 @@ export default function Benificiaires() {
   const isAdmin = user?.role === 'ADMIN';
   const queryClient = useQueryClient();
 
-  // Fetch beneficiaires
-  const { data: beneficiaires, isLoading: loadingBeneficiaires } = useQuery({
-    queryKey: ['beneficiaires'],
-    queryFn: () => benificiairesService.getAll()
+  // Fetch beneficiaires with pagination and search
+  const { data: beneficiairesData, isLoading: loadingBeneficiaires } = useQuery({
+    queryKey: ['beneficiaires', page, searchTerm],
+    queryFn: () => benificiairesService.getAll({ page, per_page: perPage, search: searchTerm })
   });
+
+  // Extract data
+  const beneficiaires = Array.isArray(beneficiairesData) ? beneficiairesData : (beneficiairesData?.items || []);
+  const totalPages = beneficiairesData?.pages || 1;
+  const totalItems = beneficiairesData?.total || 0;
 
   // Fetch services for dropdown
   const { data: services } = useQuery({
@@ -316,6 +327,18 @@ export default function Benificiaires() {
         </div>
       )}
 
+      {/* Search Bar */}
+      <div className="card p-4">
+        <SearchInput
+          value={searchTerm}
+          onChange={(value) => {
+            setSearchTerm(value);
+            setPage(1);
+          }}
+          placeholder="Rechercher par nom, fonction, service, direction..."
+        />
+      </div>
+
       {/* List */}
       <div className="card overflow-hidden">
         {loadingBeneficiaires ? (
@@ -385,6 +408,17 @@ export default function Benificiaires() {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {beneficiaires && beneficiaires.length > 0 && totalPages > 1 && (
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          totalItems={totalItems}
+          perPage={perPage}
+        />
+      )}
     </div>
   );
 }
