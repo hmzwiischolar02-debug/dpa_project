@@ -1,22 +1,31 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
+import { isAuthenticated } from './services/auth';
+
+// Components
 import Layout from './components/Layout';
-import ProtectedRoute from './components/ProtectedRoute';
+import ProtectedRoute from './components/Protectedroute';
+
+// Pages
 import Login from './pages/Login';
-import Accueil from './pages/Accueil';
+import Dashboard from './pages/Dashboard';
 import Approvisionnement from './pages/Approvisionnement';
+import Mission from './pages/Missions';
 import Dotation from './pages/Dotation';
 import Anomalies from './pages/Anomalies';
 import Statistiques from './pages/Statistiques';
-import { authService } from './services/auth';
+import Vehicules from './pages/Vehicules';
+import Historique from './pages/Historique';
+// import Rapports from './pages/Rapports';
 
+// Create QueryClient
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
       refetchOnWindowFocus: false,
       retry: 1,
-      staleTime: 5 * 60 * 1000, // 5 minutes
     },
   },
 });
@@ -26,35 +35,69 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
-          {/* Public Route */}
+          {/* Public Route - Login */}
           <Route 
             path="/login" 
             element={
-              authService.isAuthenticated() ? (
-                <Navigate to="/" replace />
-              ) : (
-                <Login />
-              )
+              isAuthenticated() ? <Navigate to="/" replace /> : <Login />
             } 
           />
 
-          {/* Protected Routes */}
+          {/* Protected Routes - All wrapped in Layout */}
           <Route
+            path="/*"
             element={
               <ProtectedRoute>
-                <Layout />
+                <Layout>
+                  <Routes>
+                    {/* Dashboard - Both ADMIN and AGENT */}
+                    <Route path="/" element={<Dashboard />} />
+
+                    {/* Approvisionnement DOTATION - Both can create */}
+                    <Route path="/approvisionnement" element={<Approvisionnement />} />
+
+                    {/* Mission - Both can create */}
+                    <Route path="/mission" element={<Mission />} />
+
+                    {/* Dotation - Both can view, ADMIN can edit */}
+                    <Route path="/dotation" element={<Dotation />} />
+
+                    {/* Anomalies - Both can view */}
+                    <Route path="/anomalies" element={<Anomalies />} />
+
+                    {/* Statistiques - Both can view */}
+                    <Route path="/statistiques" element={<Statistiques />} />
+
+                    {/* Vehicules - ADMIN only */}
+                    <Route 
+                      path="/vehicules" 
+                      element={
+                        <ProtectedRoute requireAdmin={true}>
+                          <Vehicules />
+                        </ProtectedRoute>
+                      } 
+                    />
+
+                    {/* Historique - Both can view */}
+                    <Route path="/historique" element={<Historique />} />
+
+                    {/* Rapports - ADMIN only */}
+                    {/* <Route 
+                      path="/rapports" 
+                      element={
+                        <ProtectedRoute requireAdmin={true}>
+                          <Rapports />
+                        </ProtectedRoute>
+                      } 
+                    /> */}
+
+                    {/* 404 - Redirect to dashboard */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </Layout>
               </ProtectedRoute>
             }
-          >
-            <Route path="/" element={<Accueil />} />
-            <Route path="/approvisionnement" element={<Approvisionnement />} />
-            <Route path="/dotation" element={<Dotation />} />
-            <Route path="/anomalies" element={<Anomalies />} />
-            <Route path="/statistiques" element={<Statistiques />} />
-          </Route>
-
-          {/* Catch all */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          />
         </Routes>
       </BrowserRouter>
 
@@ -66,9 +109,9 @@ function App() {
           style: {
             background: '#fff',
             color: '#363636',
-            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-            borderRadius: '0.75rem',
-            padding: '1rem',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            borderRadius: '8px',
+            padding: '16px',
           },
           success: {
             iconTheme: {

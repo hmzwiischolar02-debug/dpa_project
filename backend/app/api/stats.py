@@ -1,19 +1,20 @@
 from fastapi import APIRouter, Depends
-from typing import List
 from app.schemas.schemas import (
     DashboardStats,
     ConsommationParJour,
     ConsommationParCarburant,
-    ConsommationParService
+    ConsommationParService,
+    ConsommationParType
 )
 from app.db.database import get_db, get_db_cursor
 from app.api.auth import get_current_user
+from typing import List
 
 router = APIRouter(prefix="/stats", tags=["Statistics"])
 
 @router.get("/dashboard", response_model=DashboardStats)
 async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
-    """Get dashboard statistics overview"""
+    """Get dashboard statistics"""
     with get_db() as conn:
         cur = get_db_cursor(conn)
         
@@ -21,157 +22,157 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         cur.execute("SELECT COUNT(*) as count FROM vehicule WHERE actif=TRUE")
         total_vehicules = cur.fetchone()['count']
         
-        # Total dotations
-        cur.execute("SELECT COUNT(*) as count FROM dotation")
-        total_dotations = cur.fetchone()['count']
-        
         # Active dotations
         cur.execute("SELECT COUNT(*) as count FROM dotation WHERE cloture=FALSE")
         dotations_actives = cur.fetchone()['count']
         
-        # Closed dotations
-        cur.execute("SELECT COUNT(*) as count FROM dotation WHERE cloture=TRUE")
-        dotations_closes = cur.fetchone()['count']
-        
-        # Total benificiaires
-        cur.execute("SELECT COUNT(*) as count FROM benificiaire")
-        total_benificiaires = cur.fetchone()['count']
-        
-        # Total services
-        cur.execute("SELECT COUNT(*) as count FROM service")
-        total_services = cur.fetchone()['count']
-        
         # Total consumption
-        cur.execute("SELECT COALESCE(SUM(qte_consomme), 0) as total FROM dotation")
+        cur.execute("SELECT COALESCE(SUM(qte), 0) as total FROM approvisionnement")
         consommation_totale = float(cur.fetchone()['total'])
         
-        # Total quota (active only)
+        # Total quota
         cur.execute("SELECT COALESCE(SUM(qte), 0) as total FROM dotation WHERE cloture=FALSE")
-        quota_total = cur.fetchone()['total'] or 0
+        quota_total = cur.fetchone()['total']
+        
+        # Consumption by type
+        cur.execute("""
+            SELECT 
+                type_approvi,
+                SUM(qte) as total,
+                COUNT(*) as nombre
+            FROM approvisionnement
+            GROUP BY type_approvi
+        """)
+        type_stats = cur.fetchall()
+        
+        dotation_stats = next((r for r in type_stats if r['type_approvi'] == 'DOTATION'), None)
+        mission_stats = next((r for r in type_stats if r['type_approvi'] == 'MISSION'), None)
         
         return {
             "total_vehicules": total_vehicules,
-            "total_dotations": total_dotations,
             "dotations_actives": dotations_actives,
-            "dotations_closes": dotations_closes,
-            "total_benificiaires": total_benificiaires,
-            "total_services": total_services,
             "consommation_totale": consommation_totale,
-            "quota_total": quota_total
+            "quota_total": quota_total or 0,
+            "consommation_dotation": float(dotation_stats['total']) if dotation_stats else 0,
+            "consommation_mission": float(mission_stats['total']) if mission_stats else 0,
+            "nombre_appro_dotation": dotation_stats['nombre'] if dotation_stats else 0,
+            "nombre_appro_mission": mission_stats['nombre'] if mission_stats else 0
         }
 
 @router.get("/consommation-par-jour", response_model=List[ConsommationParJour])
 async def get_consommation_par_jour(current_user: dict = Depends(get_current_user)):
-    """Get fuel consumption grouped by day"""
+    """Get consumption by day (last 30 days)"""
     with get_db() as conn:
         cur = get_db_cursor(conn)
         cur.execute("""
-            SELECT DATE(a.date) as date, SUM(a.qte) as total
-            FROM approvisionnement a
-            GROUP BY DATE(a.date)
-            ORDER BY DATE(a.date) DESC
-            LIMIT 30
+            SELECT 
+                TO_CHAR(DATE(date), 'YYYY-MM-DD') as date,
+                SUM(qte) as total
+            FROM approvisionnement
+            WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY DATE(date)
+            ORDER BY DATE(date) ASC
         """)
-        
         results = cur.fetchall()
         
-        return [{
-            "date": str(row['date']),
-            "total": float(row['total'])
-        } for row in results]
+        return [{"date": r['date'], "total": float(r['total'])} for r in results]
 
 @router.get("/consommation-par-carburant", response_model=List[ConsommationParCarburant])
 async def get_consommation_par_carburant(current_user: dict = Depends(get_current_user)):
-    """Get fuel consumption grouped by fuel type (gazoil vs essence)"""
+    """Get consumption by fuel type (DOTATION only)"""
     with get_db() as conn:
         cur = get_db_cursor(conn)
         cur.execute("""
-            SELECT v.carburant, SUM(a.qte) as total
-            FROM approvisionnement a
-            JOIN dotation d ON d.id=a.dotation_id
-            JOIN vehicule v ON v.id=d.vehicule_id
-            GROUP BY v.carburant
-            ORDER BY total DESC
+            SELECT 
+                carburant,
+                SUM(qte) as total
+            FROM v_appro_dotation
+            GROUP BY carburant
         """)
-        
         results = cur.fetchall()
         
-        return [{
-            "carburant": row['carburant'],
-            "total": float(row['total'])
-        } for row in results]
+        return [{"carburant": r['carburant'], "total": float(r['total'])} for r in results]
 
 @router.get("/consommation-par-service", response_model=List[ConsommationParService])
 async def get_consommation_par_service(current_user: dict = Depends(get_current_user)):
-    """Get fuel consumption grouped by service"""
+    """Get consumption by service (DOTATION only)"""
     with get_db() as conn:
         cur = get_db_cursor(conn)
         cur.execute("""
-            SELECT s.nom as service, s.direction, SUM(a.qte) as total
-            FROM approvisionnement a
-            JOIN dotation d ON d.id=a.dotation_id
-            JOIN vehicule v ON v.id=d.vehicule_id
-            JOIN service s ON s.id=v.service_id
-            GROUP BY s.nom, s.direction
+            SELECT 
+                service_nom as service,
+                service_direction as direction,
+                SUM(qte) as total
+            FROM v_appro_dotation
+            GROUP BY service_nom, service_direction
             ORDER BY total DESC
         """)
-        
         results = cur.fetchall()
         
         return [{
-            "service": row['service'],
-            "direction": row['direction'],
-            "total": float(row['total'])
-        } for row in results]
+            "service": r['service'],
+            "direction": r['direction'],
+            "total": float(r['total'])
+        } for r in results]
 
-@router.get("/anomalies")
-async def get_anomalies(current_user: dict = Depends(get_current_user)):
-    """Get list of fuel supply entries marked as anomalies"""
+@router.get("/consommation-par-type", response_model=List[ConsommationParType])
+async def get_consommation_par_type(current_user: dict = Depends(get_current_user)):
+    """Get consumption by type (DOTATION vs MISSION)"""
     with get_db() as conn:
         cur = get_db_cursor(conn)
         cur.execute("""
-            SELECT a.id, a.date, a.qte, a.km_precedent, a.km_actuel,
-                   v.police, v.nCivil, v.marque,
-                   b.nom as benificiaire, s.nom as service
+            SELECT 
+                type_approvi,
+                SUM(qte) as total,
+                COUNT(*) as nombre
+            FROM approvisionnement
+            GROUP BY type_approvi
+        """)
+        results = cur.fetchall()
+        
+        return [{
+            "type_approvi": r['type_approvi'],
+            "total": float(r['total']),
+            "nombre": r['nombre']
+        } for r in results]
+
+@router.get("/anomalies", response_model=List[dict])
+async def get_anomalies(current_user: dict = Depends(get_current_user)):
+    """Get anomalous approvisionnements"""
+    with get_db() as conn:
+        cur = get_db_cursor(conn)
+        cur.execute("""
+            SELECT 
+                a.id,
+                a.date,
+                a.qte,
+                a.km_precedent,
+                a.km,
+                (a.km - a.km_precedent) as km_difference,
+                v.police,
+                v.marque,
+                b.nom as benificiaire,
+                s.nom as service
             FROM approvisionnement a
-            JOIN dotation d ON d.id=a.dotation_id
-            JOIN vehicule v ON v.id=d.vehicule_id
-            JOIN benificiaire b ON b.id=d.benificiaire_id
-            JOIN service s ON s.id=v.service_id
-            WHERE a.anomalie=TRUE
+            JOIN dotation d ON a.dotation_id = d.id
+            JOIN vehicule v ON d.vehicule_id = v.id
+            JOIN benificiaire b ON d.benificiaire_id = b.id
+            JOIN service s ON b.service_id = s.id
+            WHERE a.type_approvi = 'DOTATION' 
+              AND a.anomalie = TRUE
             ORDER BY a.date DESC
         """)
-        
         results = cur.fetchall()
-        return results
-
-@router.get("/monthly/{mois}/{annee}")
-async def get_monthly_stats(
-    mois: int,
-    annee: int,
-    current_user: dict = Depends(get_current_user)
-):
-    """Get statistics for a specific month"""
-    with get_db() as conn:
-        cur = get_db_cursor(conn)
         
-        # Total quotas for the month
-        cur.execute("""
-            SELECT COALESCE(SUM(qte), 0) as total_quota,
-                   COALESCE(SUM(qte_consomme), 0) as total_consomme,
-                   COALESCE(SUM(reste), 0) as total_reste,
-                   COUNT(*) as total_dotations
-            FROM dotation
-            WHERE mois=%s AND annee=%s
-        """, (mois, annee))
-        
-        result = cur.fetchone()
-        
-        return {
-            "mois": mois,
-            "annee": annee,
-            "total_quota": result['total_quota'],
-            "total_consomme": float(result['total_consomme']),
-            "total_reste": float(result['total_reste']),
-            "total_dotations": result['total_dotations']
-        }
+        return [{
+            "id": r['id'],
+            "date": r['date'],
+            "qte": float(r['qte']),
+            "km_precedent": r['km_precedent'],
+            "km": r['km'],
+            "km_difference": r['km_difference'],
+            "police": r['police'],
+            "marque": r['marque'],
+            "benificiaire": r['benificiaire'],
+            "service": r['service']
+        } for r in results]

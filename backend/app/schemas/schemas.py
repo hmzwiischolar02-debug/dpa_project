@@ -11,50 +11,33 @@ class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
-class TokenData(BaseModel):
-    username: Optional[str] = None
-    role: Optional[str] = None
-
 class UserInfo(BaseModel):
-    id: int
+    id_user: int
     username: str
     role: str
+    statut: str
 
-# ============= Service Schema =============
-class ServiceBase(BaseModel):
+# ============= Service Schemas =============
+class Service(BaseModel):
+    id: int
     nom: str
     direction: str
 
-class Service(ServiceBase):
-    id: int
-
-    class Config:
-        from_attributes = True
-
 # ============= Benificiaire Schemas =============
-class BenificiaireBase(BaseModel):
+class Benificiaire(BaseModel):
+    id: int
     matricule: str
     nom: str
     fonction: str
     service_id: int
-
-class BenificiaireCreate(BenificiaireBase):
-    pass
-
-class Benificiaire(BenificiaireBase):
-    id: int
-
-    class Config:
-        from_attributes = True
 
 # ============= Vehicle Schemas =============
 class VehiculeBase(BaseModel):
     police: str
     nCivil: str
     marque: Optional[str] = None
-    carburant: str  # 'gazoil' or 'essence'
+    carburant: str
     km: int = Field(ge=0)
-    service_id: int
 
 class VehiculeCreate(VehiculeBase):
     pass
@@ -64,28 +47,13 @@ class Vehicule(VehiculeBase):
     actif: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
-class VehiculeDetail(BaseModel):
-    id: int
-    police: str
-    nCivil: str
-    marque: Optional[str]
-    carburant: str
-    km: int
-    service_nom: str
-    direction: str
-    actif: bool
-
 # ============= Dotation Schemas =============
 class DotationBase(BaseModel):
-    NumOrdre: int
     vehicule_id: int
     benificiaire_id: int
     mois: int = Field(ge=1, le=12)
     annee: int = Field(ge=2020)
-    qte: int = Field(description="Quota: 120 or 140")
+    qte: int
 
 class DotationCreate(DotationBase):
     pass
@@ -97,12 +65,8 @@ class Dotation(DotationBase):
     cloture: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
 class DotationDetail(BaseModel):
     id: int
-    NumOrdre: int
     vehicule_id: int
     police: str
     nCivil: str
@@ -120,43 +84,63 @@ class DotationDetail(BaseModel):
     cloture: bool
 
 # ============= Approvisionnement Schemas =============
-class ApprovisionnementBase(BaseModel):
-    dotation_id: int
-    qte: float = Field(gt=0)
-    km_precedent: int
-    km: int
-
-class ApprovisionnementCreate(ApprovisionnementBase):
-    pass
-
-class Approvisionnement(ApprovisionnementBase):
-    id: int
-    date: datetime
-    anomalie: bool
-
-    class Config:
-        from_attributes = True
-
 class ApprovisionnementSearch(BaseModel):
     police: str
 
+class ApprovisionnementBase(BaseModel):
+    type_approvi: str = "DOTATION"
+    qte: float = Field(gt=0)
+    km_precedent: int
+    km: int
+    observations: Optional[str] = None
+
+class ApprovisionnementDotationCreate(ApprovisionnementBase):
+    dotation_id: int
+    vhc_provisoire: Optional[str] = None
+    km_provisoire: Optional[int] = None
+
+class ApprovisionnementMissionCreate(ApprovisionnementBase):
+    matricule_conducteur: str
+    service_externe: str
+    ville_origine: str
+    ordre_mission: str
+    police_vehicule: str
+
 class ApprovisionnementDetail(BaseModel):
     id: int
+    type_approvi: str
     date: datetime
     qte: float
     km_precedent: int
     km: int
-    police: str
-    nCivil: str
-    marque: Optional[str]
-    carburant: str
-    benificiaire: str
-    service: str
-    direction: str
-    quota: int
-    qte_consomme: float
-    reste: float
     anomalie: bool
+    numero_bon: Optional[str]
+    
+    # For DOTATION type
+    police: Optional[str]
+    nCivil: Optional[str]
+    marque: Optional[str]
+    carburant: Optional[str]
+    vehicule_utilise: Optional[str]
+    vhc_provisoire: Optional[str]
+    benificiaire_nom: Optional[str]
+    service_nom: Optional[str]
+    direction: Optional[str]
+    dotation_id: Optional[int]
+    mois: Optional[int]
+    annee: Optional[int]
+    quota: Optional[int]
+    qte_consomme: Optional[float]
+    reste: Optional[float]
+    
+    # For MISSION type
+    matricule_conducteur: Optional[str]
+    service_externe: Optional[str]
+    ville_origine: Optional[str]
+    ordre_mission: Optional[str]
+    police_vehicule: Optional[str]
+    
+    observations: Optional[str]
 
 class VehicleSearchResult(BaseModel):
     dotation_id: int
@@ -177,13 +161,13 @@ class VehicleSearchResult(BaseModel):
 # ============= Statistics Schemas =============
 class DashboardStats(BaseModel):
     total_vehicules: int
-    total_dotations: int
     dotations_actives: int
-    dotations_closes: int
-    total_benificiaires: int
-    total_services: int
     consommation_totale: float
     quota_total: int
+    consommation_dotation: float
+    consommation_mission: float
+    nombre_appro_dotation: int
+    nombre_appro_mission: int
 
 class ConsommationParJour(BaseModel):
     date: str
@@ -197,3 +181,8 @@ class ConsommationParService(BaseModel):
     service: str
     direction: str
     total: float
+
+class ConsommationParType(BaseModel):
+    type_approvi: str
+    total: float
+    nombre: int

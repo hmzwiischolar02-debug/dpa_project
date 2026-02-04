@@ -1,43 +1,46 @@
-import apiClient from './api';
+import api from './api';
 
 export const dotationService = {
+  /**
+   * Create new dotation (admin only)
+   */
   async create(data) {
-    const response = await apiClient.post('/dotation/', data);
+    const response = await api.post('/dotation/', data);
     return response.data;
   },
 
+  /**
+   * Get active dotations
+   */
   async getActive() {
-    const response = await apiClient.get('/dotation/active');
+    const response = await api.get('/dotation/active');
     return response.data;
   },
 
+  /**
+   * Get archived dotations
+   */
   async getArchived() {
-    const response = await apiClient.get('/dotation/archived');
+    const response = await api.get('/dotation/archived');
     return response.data;
   },
 
+  /**
+   * Get all dotations (active + archived)
+   */
   async getAll() {
-    const response = await apiClient.get('/dotation/all');
-    return response.data;
+    const [active, archived] = await Promise.all([
+      this.getActive(),
+      this.getArchived()
+    ]);
+    return [...active, ...archived];
   },
 
-  async getVehiclesWithout(mois, annee) {
-    const response = await apiClient.get(`/dotation/vehicles-without/${mois}/${annee}`);
-    return response.data;
-  },
-
-  async close(id) {
-    const response = await apiClient.put(`/dotation/${id}/close`);
-    return response.data;
-  },
-
-  async reopen(id) {
-    const response = await apiClient.put(`/dotation/${id}/reopen`);
-    return response.data;
-  },
-
+  /**
+   * Delete dotation (admin only)
+   */
   async delete(id) {
-    const response = await apiClient.delete(`/dotation/${id}`);
+    const response = await api.delete(`/dotation/${id}`);
     return response.data;
-  },
+  }
 };

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, User, LogIn } from 'lucide-react';
+import { Car, LogIn, AlertCircle } from 'lucide-react';
 import { authService } from '../services/auth';
 import toast from 'react-hot-toast';
 
@@ -8,101 +8,100 @@ export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
     
     if (!username || !password) {
-      toast.error('Veuillez remplir tous les champs');
+      setError('Veuillez remplir tous les champs');
       return;
     }
 
     setLoading(true);
 
     try {
-      await authService.login(username, password);
-      toast.success('Connexion réussie!');
+      const user = await authService.login(username, password);
+      toast.success(`Bienvenue ${user.username}!`);
       navigate('/');
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Erreur de connexion');
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Identifiants incorrects');
+      toast.error('Échec de la connexion');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 flex items-center justify-center p-4">
-      {/* Background decoration */}
+    <div className="min-h-screen bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Animated Background Circles */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-bounce-subtle"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-bounce-subtle" style={{animationDelay: '1s'}}></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
       </div>
 
-      <div className="relative w-full max-w-md">
-        {/* Logo and Title */}
-        <div className="text-center mb-8 animate-fade-in">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-2xl mb-4">
-            <svg className="w-12 h-12 text-primary-600" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
-            </svg>
+      {/* Login Card */}
+      <div className="relative z-10 w-full max-w-md">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 animate-fade-in">
+          {/* Logo & Title */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl mb-4 shadow-lg">
+              <Car className="h-8 w-8 text-white" />
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">DPA SCL</h1>
+            <p className="text-gray-600">Gestion du Parc Automobile v3.0</p>
           </div>
-          <h1 className="text-4xl font-bold text-white mb-2">DPA SCL</h1>
-          <p className="text-primary-100 text-lg">Gestion du Parc Automobile</p>
-        </div>
 
-        {/* Login Form */}
-        <div className="card p-8 backdrop-blur-sm bg-white/95 animate-slide-in">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-            Connexion
-          </h2>
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3 animate-slide-in">
+              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
 
+          {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Username Input */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="username" className="label">
                 Nom d'utilisateur
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="input-field pl-10"
-                  placeholder="admin"
-                  disabled={loading}
-                />
-              </div>
+              <input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="input-field"
+                placeholder="Entrez votre nom d'utilisateur"
+                disabled={loading}
+                autoComplete="username"
+                autoFocus
+              />
             </div>
 
-            {/* Password Input */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="password" className="label">
                 Mot de passe
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="input-field pl-10"
-                  placeholder="••••••••"
-                  disabled={loading}
-                />
-              </div>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input-field"
+                placeholder="Entrez votre mot de passe"
+                disabled={loading}
+                autoComplete="current-password"
+              />
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full btn-primary flex items-center justify-center gap-2 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full btn-primary flex items-center justify-center gap-2 py-3 text-base"
             >
               {loading ? (
                 <>
@@ -118,14 +117,30 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Helper text */}
-          
+          {/* Default Credentials Hint */}
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-xs text-blue-800 font-medium mb-2">
+              💡 Identifiants par défaut:
+            </p>
+            <div className="space-y-1 text-xs text-blue-700">
+              <p><span className="font-semibold">Admin:</span> admin / admin123</p>
+              <p><span className="font-semibold">Agent:</span> agent / agent123</p>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-6 text-center text-sm text-gray-500">
+            <p>DPA SCL - Système de Gestion</p>
+            <p className="text-xs mt-1">Version 3.0 - 2026</p>
+          </div>
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-primary-100 text-sm mt-6">
-          © 2026 DPA SCL - Tous droits réservés
-        </p>
+        {/* Additional Info */}
+        <div className="mt-4 text-center">
+          <p className="text-white/80 text-sm">
+            Besoin d'aide ? Contactez votre administrateur système
+          </p>
+        </div>
       </div>
     </div>
   );

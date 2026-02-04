@@ -28,11 +28,15 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
 
 @router.post("/login", response_model=Token)
 async def login(credentials: UserLogin):
-    """Login endpoint - returns JWT token"""
+    """Login endpoint - returns JWT token
+    
+    IMPORTANT: v3.0 database uses PLAIN TEXT passwords!
+    This should be fixed in production by hashing passwords.
+    """
     with get_db() as conn:
         cur = get_db_cursor(conn)
         cur.execute(
-            "SELECT id, username, password_hash, role FROM users WHERE username = %s",
+            "SELECT id_user, username, password, role FROM users WHERE username = %s AND statut = 'ACTIF'",
             (credentials.username,)
         )
         user = cur.fetchone()
@@ -43,14 +47,9 @@ async def login(credentials: UserLogin):
                 detail="Nom d'utilisateur ou mot de passe incorrect"
             )
         
-        # Verify password using PostgreSQL's crypt function
-        cur.execute(
-            "SELECT password_hash = crypt(%s, password_hash) as valid FROM users WHERE username = %s",
-            (credentials.password, credentials.username)
-        )
-        result = cur.fetchone()
-        
-        if not result or not result['valid']:
+        # IMPORTANT: Plain text password comparison (v3.0 database structure)
+        # TODO: In production, hash passwords and use verify_password()
+        if user['password'] != credentials.password:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Nom d'utilisateur ou mot de passe incorrect"
@@ -75,7 +74,7 @@ async def get_user_info(current_user: dict = Depends(get_current_user)):
     with get_db() as conn:
         cur = get_db_cursor(conn)
         cur.execute(
-            "SELECT id, username, role FROM users WHERE username = %s",
+            "SELECT id_user, username, role, statut FROM users WHERE username = %s",
             (current_user['username'],)
         )
         user = cur.fetchone()

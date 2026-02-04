@@ -19,19 +19,19 @@ export default {
           800: '#1e40af',
           900: '#1e3a8a',
         },
-        gazoil: {
-          500: '#f97316',
-          600: '#ea580c',
+        dotation: {
+          500: '#3b82f6',
+          600: '#2563eb',
         },
-        essence: {
-          500: '#10b981',
-          600: '#059669',
-        },
+        mission: {
+          500: '#ef4444',
+          600: '#dc2626',
+        }
       },
       animation: {
-        'fade-in': 'fadeIn 0.3s ease-in-out',
+        'fade-in': 'fadeIn 0.3s ease-in',
         'slide-in': 'slideIn 0.3s ease-out',
-        'bounce-subtle': 'bounceSubtle 0.5s ease-in-out',
+        'bounce-subtle': 'bounceSubtle 2s infinite',
       },
       keyframes: {
         fadeIn: {
@@ -45,8 +45,8 @@ export default {
         bounceSubtle: {
           '0%, 100%': { transform: 'translateY(0)' },
           '50%': { transform: 'translateY(-5px)' },
-        },
-      },
+        }
+      }
     },
   },
   plugins: [],

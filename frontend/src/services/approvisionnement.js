@@ -1,42 +1,67 @@
-import apiClient from './api';
+import api from './api';
 
 export const approvisionnementService = {
+  /**
+   * Search for vehicle by police number
+   */
   async searchVehicle(police) {
-    const response = await apiClient.post('/approvisionnement/search', { police });
+    const response = await api.post('/approvisionnement/search', { police });
     return response.data;
   },
 
-  async create(data) {
-    const response = await apiClient.post('/approvisionnement/', data);
-    return response.data;
-  },
-
-  async getList(skip = 0, limit = 100) {
-    const response = await apiClient.get('/approvisionnement/list', {
-      params: { skip, limit },
+  /**
+   * Create DOTATION approvisionnement
+   */
+  async createDotation(data) {
+    const response = await api.post('/approvisionnement/dotation', {
+      type_approvi: 'DOTATION',
+      ...data
     });
     return response.data;
   },
 
-  async getByService(serviceName) {
-    const response = await apiClient.get(`/approvisionnement/by-service/${serviceName}`);
-    return response.data;
-  },
-
-  async getByVehicle(police) {
-    const response = await apiClient.get(`/approvisionnement/by-vehicle/${police}`);
-    return response.data;
-  },
-
-  async update(id, qte) {
-    const response = await apiClient.put(`/approvisionnement/${id}`, null, {
-      params: { qte },
+  /**
+   * Create MISSION approvisionnement
+   */
+  async createMission(data) {
+    const response = await api.post('/approvisionnement/mission', {
+      type_approvi: 'MISSION',
+      ...data
     });
     return response.data;
   },
 
+  /**
+   * Get list of all approvisionnements
+   */
+  async getList(skip = 0, limit = 1000, type_filter = null) {
+    const params = { skip, limit };
+    if (type_filter) {
+      params.type_filter = type_filter;
+    }
+    const response = await api.get('/approvisionnement/list', { params });
+    return response.data;
+  },
+
+  /**
+   * Get DOTATION approvisionnements only
+   */
+  async getDotationList(skip = 0, limit = 1000) {
+    return this.getList(skip, limit, 'DOTATION');
+  },
+
+  /**
+   * Get MISSION approvisionnements only
+   */
+  async getMissionList(skip = 0, limit = 1000) {
+    return this.getList(skip, limit, 'MISSION');
+  },
+
+  /**
+   * Delete approvisionnement (admin only)
+   */
   async delete(id) {
-    const response = await apiClient.delete(`/approvisionnement/${id}`);
+    const response = await api.delete(`/approvisionnement/${id}`);
     return response.data;
-  },
+  }
 };

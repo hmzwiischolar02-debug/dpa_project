@@ -1,6 +1,7 @@
 {
-  "name": "dpa-web-frontend",
-  "version": "1.0.0",
+  "name": "dpa-frontend-v3",
+  "version": "3.0.0",
+  "description": "DPA SCL Fleet Management - Frontend v3.0 with RBAC",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -8,26 +9,24 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.14.2",
-    "axios": "^1.6.2",
+    "@tanstack/react-query": "^5.17.9",
+    "axios": "^1.6.5",
     "date-fns": "^3.0.6",
-    "framer-motion": "^10.16.16",
-    "jspdf": "^2.5.2",
-    "jspdf-autotable": "^3.8.2",
-    "lucide-react": "^0.294.0",
+    "jspdf": "^2.5.1",
+    "lucide-react": "^0.307.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.4.1",
-    "react-router-dom": "^6.20.0",
-    "recharts": "^2.15.4"
+    "react-router-dom": "^6.21.1",
+    "recharts": "^2.10.3"
   },
   "devDependencies": {
-    "@types/react": "^18.2.43",
-    "@types/react-dom": "^18.2.17",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.24",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.19",
-    "vite": "^5.0.8"
+    "vite": "^5.0.11"
   }
 }

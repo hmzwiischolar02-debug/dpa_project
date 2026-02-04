@@ -1,141 +1,318 @@
 import { useState } from 'react';
-import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
-  Home, 
-  Fuel, 
-  FileText, 
-  AlertTriangle, 
-  BarChart3, 
-  LogOut, 
-  Menu, 
-  X,
-  User
+  Home, Fuel, MapPin, FileText, Car, Users, AlertTriangle, 
+  BarChart3, Clock, FileBarChart, Settings, Menu, X, LogOut, Crown, User
 } from 'lucide-react';
-import { authService } from '../services/auth';
-import toast from 'react-hot-toast';
+import { getUser, logout } from '../services/auth';
+import { hasPermission } from '../utils/permissions';
 
-export default function Layout() {
+export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const user = authService.getUser();
+  const user = getUser();
+  const isAdmin = user?.role === 'ADMIN';
 
-  const handleLogout = () => {
-    authService.logout();
-    toast.success('Déconnexion réussie');
-    navigate('/login');
-  };
-
-  const navigation = [
-    { name: 'Accueil', path: '/', icon: Home },
-    { name: 'Approvisionnement', path: '/approvisionnement', icon: Fuel },
-    { name: 'Dotation', path: '/dotation', icon: FileText },
-    { name: 'Anomalies', path: '/anomalies', icon: AlertTriangle },
-    { name: 'Statistiques', path: '/statistiques', icon: BarChart3 },
+  // Menu items with role-based access
+  const menuItems = [
+    { 
+      path: '/', 
+      icon: Home, 
+      label: 'Accueil', 
+      roles: ['ADMIN', 'AGENT'] 
+    },
+    { 
+      path: '/approvisionnement', 
+      icon: Fuel, 
+      label: 'Approvisionnement', 
+      roles: ['ADMIN', 'AGENT'],
+      badge: 'DOTATION',
+      badgeColor: 'bg-blue-100 text-blue-700'
+    },
+    { 
+      path: '/mission', 
+      icon: MapPin, 
+      label: 'Mission', 
+      roles: ['ADMIN', 'AGENT'],
+      badge: 'NEW',
+      badgeColor: 'bg-red-100 text-red-700'
+    },
+    { 
+      path: '/dotation', 
+      icon: FileText, 
+      label: 'Dotation', 
+      roles: ['ADMIN', 'AGENT'],
+      readOnly: !isAdmin
+    },
+    { 
+      path: '/vehicules', 
+      icon: Car, 
+      label: 'Véhicules', 
+      roles: ['ADMIN']  // ADMIN only
+    },
+    { 
+      path: '/beneficiaires', 
+      icon: Users, 
+      label: 'Bénéficiaires', 
+      roles: ['ADMIN']  // ADMIN only
+    },
+    { 
+      path: '/anomalies', 
+      icon: AlertTriangle, 
+      label: 'Anomalies', 
+      roles: ['ADMIN', 'AGENT']
+    },
+    { 
+      path: '/statistiques', 
+      icon: BarChart3, 
+      label: 'Statistiques', 
+      roles: ['ADMIN', 'AGENT']
+    },
+    { 
+      path: '/historique', 
+      icon: Clock, 
+      label: 'Historique', 
+      roles: ['ADMIN', 'AGENT']
+    },
+    { 
+      path: '/rapports', 
+      icon: FileBarChart, 
+      label: 'Rapports', 
+      roles: ['ADMIN']  // ADMIN only
+    },
   ];
 
-  const isActive = (path) => {
-    if (path === '/') {
-      return location.pathname === '/';
+  // Filter menu items by role
+  const visibleMenuItems = menuItems.filter(item => 
+    item.roles.includes(user?.role)
+  );
+
+  const handleLogout = () => {
+    if (window.confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) {
+      logout();
+      navigate('/login');
     }
-    return location.pathname.startsWith(path);
   };
 
+  const isActive = (path) => location.pathname === path;
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-30">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-4">
-            {/* Mobile menu button */}
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="lg:hidden p-2 rounded-lg hover:bg-gray-100"
-            >
-              {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-
-            {/* Logo */}
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-primary-700 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
-                </svg>
-              </div>
-              <div className="hidden sm:block">
-                <h1 className="text-lg font-bold text-gray-900">DPA SCL</h1>
-                <p className="text-xs text-gray-500">Gestion du Parc Automobile</p>
-              </div>
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* Sidebar - Desktop */}
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-gradient-to-b from-slate-900 to-slate-800 text-white fixed h-full">
+        {/* Logo & Title */}
+        <div className="p-6 border-b border-slate-700">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center">
+              <Car className="h-6 w-6 text-white" />
             </div>
-          </div>
-
-          {/* User menu */}
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg">
-              <User size={20} className="text-gray-600" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">{user?.username}</p>
-                <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
-              </div>
+            <div>
+              <h1 className="text-xl font-bold">DPA SCL</h1>
+              <p className="text-xs text-slate-400">Gestion du Parc Auto</p>
             </div>
-            <button
-              onClick={handleLogout}
-              className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Déconnexion"
-            >
-              <LogOut size={20} />
-            </button>
           </div>
         </div>
-      </header>
 
-      {/* Sidebar */}
-      <aside
-        className={`
-          fixed top-16 left-0 bottom-0 w-64 bg-gradient-to-b from-slate-900 to-slate-800 text-white
-          transform transition-transform duration-300 ease-in-out z-20
-          lg:translate-x-0
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-        `}
-      >
-        <nav className="p-4 space-y-2">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.path);
-            
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={() => setSidebarOpen(false)}
-                className={`
-                  flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200
-                  ${active 
-                    ? 'bg-primary-600 text-white shadow-lg' 
-                    : 'text-gray-300 hover:bg-slate-700 hover:text-white'
-                  }
-                `}
-              >
-                <Icon size={20} />
-                <span className="font-medium">{item.name}</span>
-              </Link>
-            );
-          })}
+        {/* User Info */}
+        <div className="px-6 py-4 border-b border-slate-700">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+              isAdmin ? 'bg-red-500' : 'bg-blue-500'
+            }`}>
+              {isAdmin ? <Crown className="h-5 w-5" /> : <User className="h-5 w-5" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold truncate">{user?.username}</p>
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                isAdmin ? 'bg-red-500/20 text-red-200' : 'bg-blue-500/20 text-blue-200'
+              }`}>
+                {isAdmin ? '👑 Admin' : '👤 Agent'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+          <ul className="space-y-1">
+            {visibleMenuItems.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.path);
+              
+              return (
+                <li key={item.path}>
+                  <Link
+                    to={item.path}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
+                      active
+                        ? 'bg-primary-600 text-white shadow-lg'
+                        : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                    }`}
+                  >
+                    <Icon className="h-5 w-5 flex-shrink-0" />
+                    <span className="font-medium flex-1">{item.label}</span>
+                    
+                    {/* Badge */}
+                    {item.badge && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${item.badgeColor}`}>
+                        {item.badge}
+                      </span>
+                    )}
+                    
+                    {/* Read-only indicator */}
+                    {item.readOnly && (
+                      <span className="text-xs text-slate-400">(Vue)</span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
         </nav>
+
+        {/* Logout */}
+        <div className="p-4 border-t border-slate-700">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 text-slate-300 hover:bg-red-500/10 hover:text-red-400 rounded-lg transition-colors"
+          >
+            <LogOut className="h-5 w-5" />
+            <span className="font-medium">Déconnexion</span>
+          </button>
+        </div>
       </aside>
 
-      {/* Mobile overlay */}
+      {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-10 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Main content */}
-      <main className="lg:ml-64 mt-16 p-4 md:p-6">
-        <Outlet />
-      </main>
+      {/* Mobile Sidebar */}
+      <aside
+        className={`fixed inset-y-0 left-0 w-64 bg-gradient-to-b from-slate-900 to-slate-800 text-white z-50 transform transition-transform duration-300 lg:hidden ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        {/* Same content as desktop sidebar */}
+        <div className="p-6 border-b border-slate-700 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center">
+              <Car className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">DPA SCL</h1>
+              <p className="text-xs text-slate-400">Gestion du Parc</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="p-2 hover:bg-slate-700 rounded-lg"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="px-6 py-4 border-b border-slate-700">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+              isAdmin ? 'bg-red-500' : 'bg-blue-500'
+            }`}>
+              {isAdmin ? <Crown className="h-5 w-5" /> : <User className="h-5 w-5" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold truncate">{user?.username}</p>
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                isAdmin ? 'bg-red-500/20 text-red-200' : 'bg-blue-500/20 text-blue-200'
+              }`}>
+                {isAdmin ? '👑 Admin' : '👤 Agent'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+          <ul className="space-y-1">
+            {visibleMenuItems.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.path);
+              
+              return (
+                <li key={item.path}>
+                  <Link
+                    to={item.path}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
+                      active
+                        ? 'bg-primary-600 text-white'
+                        : 'text-slate-300 hover:bg-slate-700/50'
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className="font-medium flex-1">{item.label}</span>
+                    {item.badge && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${item.badgeColor}`}>
+                        {item.badge}
+                      </span>
+                    )}
+                    {item.readOnly && (
+                      <span className="text-xs text-slate-400">(Vue)</span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+
+        <div className="p-4 border-t border-slate-700">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 text-slate-300 hover:bg-red-500/10 hover:text-red-400 rounded-lg transition-colors"
+          >
+            <LogOut className="h-5 w-5" />
+            <span className="font-medium">Déconnexion</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 lg:ml-64">
+        {/* Mobile Header */}
+        <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-gray-200 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="p-2 hover:bg-gray-100 rounded-lg"
+            >
+              <Menu className="h-6 w-6 text-gray-700" />
+            </button>
+            <div className="flex items-center gap-2">
+              <Car className="h-6 w-6 text-primary-600" />
+              <span className="font-bold text-gray-900">DPA SCL</span>
+            </div>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              isAdmin ? 'bg-red-100' : 'bg-blue-100'
+            }`}>
+              {isAdmin ? (
+                <Crown className="h-4 w-4 text-red-600" />
+              ) : (
+                <User className="h-4 w-4 text-blue-600" />
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* Page Content */}
+        <main className="p-4 sm:p-6 lg:p-8">
+          <div className="max-w-7xl mx-auto animate-fade-in">
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
