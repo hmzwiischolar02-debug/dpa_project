@@ -24,7 +24,7 @@ export default function Historique() {
               Vue chronologique complète
             </h3>
             <p className="text-sm text-blue-800">
-              Cette page affiche tous les approvisionnements effectués, qu'ils soient de type DOTATION (quota mensuel) 
+              Cette page affiche tous les approvisionnements effectués, qu'ils soient de type DOTATION (qte mensuel) 
               ou MISSION (mission externe). Utilisez les filtres pour affiner votre recherche.
             </p>
           </div>

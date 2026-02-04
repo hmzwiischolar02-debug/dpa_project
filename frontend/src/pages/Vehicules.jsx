@@ -112,20 +112,30 @@ export default function Vehicules() {
           </p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            resetForm();
+            setShowForm(!showForm);
+          }}
           className="btn-primary flex items-center gap-2"
         >
           <Plus className="h-5 w-5" />
-          Nouveau véhicule
+          {showForm ? 'Annuler' : 'Nouveau véhicule'}
         </button>
       </div>
 
       {/* Form */}
       {showForm && (
-        <div className="card p-6 animate-slide-in">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            {editingVehicle ? 'Modifier le véhicule' : 'Nouveau véhicule'}
-          </h3>
+        <div className="card p-6 animate-slide-in border-2 border-primary-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">
+              {editingVehicle ? '✏️ Modifier le véhicule' : '➕ Nouveau véhicule'}
+            </h3>
+            {editingVehicle && (
+              <span className="text-sm px-3 py-1 bg-blue-100 text-blue-700 rounded-full">
+                ID: {editingVehicle.id}
+              </span>
+            )}
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -318,17 +328,18 @@ export default function Vehicules() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleEdit(vehicle)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors group"
                           title="Modifier"
                         >
-                          <Edit2 className="h-4 w-4" />
+                          <Edit2 className="h-4 w-4 group-hover:scale-110 transition-transform" />
                         </button>
                         <button
                           onClick={() => handleDelete(vehicle)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors group"
                           title="Désactiver"
+                          disabled={!vehicle.actif}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4 group-hover:scale-110 transition-transform" />
                         </button>
                       </div>
                     </td>

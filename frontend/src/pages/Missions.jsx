@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { MapPin, CheckCircle, Truck, User as UserIcon, Building, MapPinned } from 'lucide-react';
+import { MapPin, CheckCircle, Truck, User as UserIcon, Building, MapPinned, Plus, ArrowLeft } from 'lucide-react';
 import { approvisionnementService } from '../services/approvisionnement';
+import ApprovisionnementList from '../components/Approvisionnementlist';
 import toast from 'react-hot-toast';
 
 export default function Mission() {
+  const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     qte: '',
     km_precedent: '',
@@ -67,9 +69,28 @@ export default function Mission() {
       return;
     }
 
-    if (km <= km_precedent) {
-      toast.error('Le kilométrage actuel doit être supérieur au kilométrage précédent');
-      return;
+    // CHECK: KM less than previous KM (vehicle breakdown case)
+    if (km < km_precedent) {
+      const kmDifference = km_precedent - km;
+      const confirmMessage = `⚠️ ATTENTION: Kilométrage Inférieur\n\n` +
+        `KM actuel: ${km}\n` +
+        `KM précédent: ${km_precedent}\n` +
+        `Différence: -${kmDifference} km\n\n` +
+        `Cela indique généralement une panne du véhicule.\n\n` +
+        `Avez-vous ajouté une observation expliquant cette situation ?`;
+      
+      if (!window.confirm(confirmMessage)) {
+        toast.error('Opération annulée');
+        return;
+      }
+
+      // Force user to add observation if not already present
+      if (!formData.observations || formData.observations.trim() === '') {
+        toast.error('⚠️ Veuillez ajouter une observation expliquant pourquoi le kilométrage est inférieur (ex: panne, réparation, compteur défectueux)');
+        // Focus on observations field
+        document.querySelector('textarea[name="observations"]')?.focus();
+        return;
+      }
     }
 
     createMutation.mutate({
@@ -88,27 +109,73 @@ export default function Mission() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div>
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-red-600 rounded-lg flex items-center justify-center">
-            <MapPin className="h-6 w-6 text-white" />
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-red-600 rounded-lg flex items-center justify-center">
+              <MapPin className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Approvisionnement MISSION
+              </h1>
+              <p className="text-gray-600">
+                {showForm
+                  ? "Enregistrer un approvisionnement pour mission externe"
+                  : "Liste des approvisionnements MISSION"
+                }
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Approvisionnement MISSION
-            </h1>
-            <p className="text-gray-600">
-              Enregistrer un approvisionnement pour mission externe
-            </p>
-          </div>
+          {showForm && (
+            <span className="badge-mission inline-flex mt-2">
+              Nouveau type dans v3.0
+            </span>
+          )}
         </div>
-        <span className="badge-mission inline-flex mt-2">
-          Nouveau type dans v3.0
-        </span>
+
+        {/* Toggle Button */}
+        {showForm ? (
+          <button
+            onClick={() => {
+              setShowForm(false);
+              setFormData({
+                qte: '',
+                km_precedent: '',
+                km: '',
+                matricule_conducteur: '',
+                service_externe: '',
+                ville_origine: '',
+                ordre_mission: '',
+                police_vehicule: '',
+                observations: ''
+              });
+            }}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <ArrowLeft className="h-5 w-5" />
+            Retour à la liste
+          </button>
+        ) : (
+          <button
+            onClick={() => setShowForm(true)}
+            className="btn-mission flex items-center gap-2"
+          >
+            <Plus className="h-5 w-5" />
+            Nouvelle mission
+          </button>
+        )}
       </div>
 
-      {/* Info Card */}
-      <div className="card p-6 bg-gradient-to-br from-red-50 to-red-100 border-red-200">
+      {/* Show List or Form */}
+      {!showForm ? (
+        /* List View */
+        <ApprovisionnementList typeFilter="MISSION" />
+      ) : (
+        /* Form View */
+        <>
+          {/* Info Card */}
+          <div className="card p-6 bg-gradient-to-br from-red-50 to-red-100 border-red-200">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 bg-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
             <Truck className="h-5 w-5 text-white" />
@@ -286,15 +353,34 @@ export default function Mission() {
           {/* Observations */}
           <div>
             <label className="label">
-              Observations / Remarques
+              Observations / Remarques {formData.km && formData.km_precedent && parseInt(formData.km) < parseInt(formData.km_precedent) && (
+                <span className="text-red-500">* (Obligatoire - KM inférieur détecté)</span>
+              )}
             </label>
             <textarea
+              name="observations"
               value={formData.observations}
               onChange={(e) => setFormData({...formData, observations: e.target.value})}
-              className="input-field"
+              className={`input-field ${
+                formData.km && formData.km_precedent && parseInt(formData.km) < parseInt(formData.km_precedent)
+                  ? 'border-red-300 ring-2 ring-red-200' 
+                  : ''
+              }`}
               rows="3"
-              placeholder="Informations complémentaires sur la mission..."
+              placeholder={
+                formData.km && formData.km_precedent && parseInt(formData.km) < parseInt(formData.km_precedent)
+                  ? "OBLIGATOIRE: Expliquer pourquoi le kilométrage est inférieur (ex: panne moteur, réparation, compteur défectueux...)"
+                  : "Informations complémentaires sur la mission..."
+              }
             />
+            {formData.km && formData.km_precedent && parseInt(formData.km) < parseInt(formData.km_precedent) && (
+              <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
+                <span>⚠️</span>
+                <span>
+                  Veuillez expliquer pourquoi le kilométrage ({formData.km} km) est inférieur au précédent ({formData.km_precedent} km)
+                </span>
+              </p>
+            )}
           </div>
 
           {/* Submit Button */}
@@ -347,6 +433,8 @@ export default function Mission() {
           Les missions sont suivies séparément des dotations mensuelles dans les statistiques.
         </p>
       </div>
+        </>
+      )}
     </div>
   );
 }

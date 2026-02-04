@@ -31,6 +31,57 @@ async def create_dotation(
             conn.rollback()
             raise HTTPException(status_code=400, detail=str(e))
 
+@router.get("/available-vehicles", response_model=List[dict])
+async def get_available_vehicles(
+    mois: int,
+    annee: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get vehicles without active dotation for given month/year"""
+    with get_db() as conn:
+        cur = get_db_cursor(conn)
+        cur.execute("""
+            SELECT v.id, v.police, v.ncivil, v.marque, v.carburant
+            FROM vehicule v
+            WHERE v.actif = TRUE
+            AND NOT EXISTS (
+                SELECT 1 FROM dotation d
+                WHERE d.vehicule_id = v.id
+                AND d.mois = %s
+                AND d.annee = %s
+                AND d.cloture = FALSE
+            )
+            ORDER BY v.police
+        """, (mois, annee))
+        results = cur.fetchall()
+        return [dict(r) for r in results]
+
+@router.get("/available-benificiaires", response_model=List[dict])
+async def get_available_benificiaires(
+    mois: int,
+    annee: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get beneficiaires without active dotation for given month/year"""
+    with get_db() as conn:
+        cur = get_db_cursor(conn)
+        cur.execute("""
+            SELECT b.id, b.matricule, b.nom, b.fonction, b.service_id,
+                   s.nom as service_nom, s.direction
+            FROM benificiaire b
+            LEFT JOIN service s ON b.service_id = s.id
+            WHERE NOT EXISTS (
+                SELECT 1 FROM dotation d
+                WHERE d.benificiaire_id = b.id
+                AND d.mois = %s
+                AND d.annee = %s
+                AND d.cloture = FALSE
+            )
+            ORDER BY b.nom
+        """, (mois, annee))
+        results = cur.fetchall()
+        return [dict(r) for r in results]
+
 @router.get("/active", response_model=List[DotationDetail])
 async def get_active_dotations(current_user: dict = Depends(get_current_user)):
     """Get all active (non-closed) dotations"""
@@ -38,22 +89,10 @@ async def get_active_dotations(current_user: dict = Depends(get_current_user)):
         cur = get_db_cursor(conn)
         cur.execute("""
             SELECT 
-                d.id,
-                d.vehicule_id,
-                v.police,
-                v.nCivil,
-                v.marque,
-                v.carburant,
-                b.nom AS benificiaire_nom,
-                b.fonction AS benificiaire_fonction,
-                s.nom AS service_nom,
-                s.direction,
-                d.mois,
-                d.annee,
-                d.qte,
-                d.qte_consomme,
-                d.reste,
-                d.cloture
+                d.id, d.vehicule_id, v.police, v.nCivil, v.marque, v.carburant,
+                b.nom AS benificiaire_nom, b.fonction AS benificiaire_fonction,
+                s.nom AS service_nom, s.direction, d.mois, d.annee,
+                d.qte, d.qte_consomme, d.reste, d.cloture
             FROM dotation d
             JOIN vehicule v ON d.vehicule_id = v.id
             JOIN benificiaire b ON d.benificiaire_id = b.id
@@ -89,22 +128,10 @@ async def get_archived_dotations(current_user: dict = Depends(get_current_user))
         cur = get_db_cursor(conn)
         cur.execute("""
             SELECT 
-                d.id,
-                d.vehicule_id,
-                v.police,
-                v.nCivil,
-                v.marque,
-                v.carburant,
-                b.nom AS benificiaire_nom,
-                b.fonction AS benificiaire_fonction,
-                s.nom AS service_nom,
-                s.direction,
-                d.mois,
-                d.annee,
-                d.qte,
-                d.qte_consomme,
-                d.reste,
-                d.cloture
+                d.id, d.vehicule_id, v.police, v.nCivil, v.marque, v.carburant,
+                b.nom AS benificiaire_nom, b.fonction AS benificiaire_fonction,
+                s.nom AS service_nom, s.direction, d.mois, d.annee,
+                d.qte, d.qte_consomme, d.reste, d.cloture
             FROM dotation d
             JOIN vehicule v ON d.vehicule_id = v.id
             JOIN benificiaire b ON d.benificiaire_id = b.id
@@ -152,3 +179,58 @@ async def delete_dotation(
         
         conn.commit()
         return {"success": True, "message": "Dotation supprimée"}
+
+@router.put("/{dotation_id}")
+async def update_dotation(
+    dotation_id: int,
+    dotation: DotationCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update a dotation (admin only)"""
+    if current_user['role'] != 'ADMIN':
+        raise HTTPException(status_code=403, detail="Accès administrateur requis")
+    
+    with get_db() as conn:
+        cur = get_db_cursor(conn)
+        try:
+            cur.execute("""
+                UPDATE dotation 
+                SET vehicule_id=%s, benificiaire_id=%s, mois=%s, annee=%s, qte=%s
+                WHERE id=%s
+                RETURNING id
+            """, (dotation.vehicule_id, dotation.benificiaire_id, dotation.mois, dotation.annee, dotation.qte, dotation_id))
+            
+            result = cur.fetchone()
+            if not result:
+                raise HTTPException(status_code=404, detail="Dotation non trouvée")
+            
+            conn.commit()
+            return {"success": True, "message": "Dotation modifiée"}
+        except Exception as e:
+            conn.rollback()
+            raise HTTPException(status_code=400, detail=str(e))
+
+@router.put("/{dotation_id}/close")
+async def close_dotation(
+    dotation_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Close a dotation (admin only)"""
+    if current_user['role'] != 'ADMIN':
+        raise HTTPException(status_code=403, detail="Accès administrateur requis")
+    
+    with get_db() as conn:
+        cur = get_db_cursor(conn)
+        cur.execute("""
+            UPDATE dotation 
+            SET cloture=TRUE
+            WHERE id=%s
+            RETURNING id
+        """, (dotation_id,))
+        
+        result = cur.fetchone()
+        if not result:
+            raise HTTPException(status_code=404, detail="Dotation non trouvée")
+        
+        conn.commit()
+        return {"success": True, "message": "Dotation clôturée"}

@@ -42,5 +42,21 @@ export const dotationService = {
   async delete(id) {
     const response = await api.delete(`/dotation/${id}`);
     return response.data;
+  },
+
+  /**
+   * Update dotation (admin only)
+   */
+  async update(id, data) {
+    const response = await api.put(`/dotation/${id}`, data);
+    return response.data;
+  },
+
+  /**
+   * Close dotation (admin only)
+   */
+  async close(id) {
+    const response = await api.put(`/dotation/${id}/close`);
+    return response.data;
   }
 };

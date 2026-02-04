@@ -94,5 +94,29 @@ export const benificiairesService = {
   async getByService(serviceId) {
     const response = await api.get(`/benificiaires/by-service/${serviceId}`);
     return response.data;
+  },
+
+  /**
+   * Create beneficiaire (admin only)
+   */
+  async create(data) {
+    const response = await api.post('/benificiaires', data);
+    return response.data;
+  },
+
+  /**
+   * Update beneficiaire (admin only)
+   */
+  async update(id, data) {
+    const response = await api.put(`/benificiaires/${id}`, data);
+    return response.data;
+  },
+
+  /**
+   * Delete beneficiaire (admin only)
+   */
+  async delete(id) {
+    const response = await api.delete(`/benificiaires/${id}`);
+    return response.data;
   }
 };

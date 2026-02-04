@@ -3,14 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Printer, Trash2, Download, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { approvisionnementService } from '../services/approvisionnement';
 import { getUser } from '../services/auth';
-import TypeBadge from './Typebadge';
+import TypeBadge from './TypeBadge';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
-export default function ApprovisionnementList() {
+export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 'all' }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState(initialTypeFilter);
   const itemsPerPage = 10;
   
   const user = getUser();
@@ -121,47 +121,49 @@ export default function ApprovisionnementList() {
           </div>
 
           {/* Type Filter */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                setTypeFilter('all');
-                setCurrentPage(1);
-              }}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                typeFilter === 'all'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Tous
-            </button>
-            <button
-              onClick={() => {
-                setTypeFilter('DOTATION');
-                setCurrentPage(1);
-              }}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                typeFilter === 'DOTATION'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-              }`}
-            >
-              DOTATION
-            </button>
-            <button
-              onClick={() => {
-                setTypeFilter('MISSION');
-                setCurrentPage(1);
-              }}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                typeFilter === 'MISSION'
-                  ? 'bg-red-600 text-white'
-                  : 'bg-red-100 text-red-700 hover:bg-red-200'
-              }`}
-            >
-              MISSION
-            </button>
-          </div>
+          {initialTypeFilter === 'all' && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setTypeFilter('all');
+                  setCurrentPage(1);
+                }}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  typeFilter === 'all'
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Tous
+              </button>
+              <button
+                onClick={() => {
+                  setTypeFilter('DOTATION');
+                  setCurrentPage(1);
+                }}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  typeFilter === 'DOTATION'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                }`}
+              >
+                DOTATION
+              </button>
+              <button
+                onClick={() => {
+                  setTypeFilter('MISSION');
+                  setCurrentPage(1);
+                }}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  typeFilter === 'MISSION'
+                    ? 'bg-red-600 text-white'
+                    : 'bg-red-100 text-red-700 hover:bg-red-200'
+                }`}
+              >
+                MISSION
+              </button>
+            </div>
+          )}
 
           {/* Export */}
           <button

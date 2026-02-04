@@ -5,7 +5,7 @@ import { isAuthenticated } from './services/auth';
 
 // Components
 import Layout from './components/Layout';
-import ProtectedRoute from './components/Protectedroute';
+import ProtectedRoute from './components/ProtectedRoute';
 
 // Pages
 import Login from './pages/Login';
@@ -17,7 +17,8 @@ import Anomalies from './pages/Anomalies';
 import Statistiques from './pages/Statistiques';
 import Vehicules from './pages/Vehicules';
 import Historique from './pages/Historique';
-// import Rapports from './pages/Rapports';
+import Benificiaires from './pages/Benificiaires';
+import Rapports from './pages/Rapports';
 
 // Create QueryClient
 const queryClient = new QueryClient({
@@ -81,15 +82,25 @@ function App() {
                     {/* Historique - Both can view */}
                     <Route path="/historique" element={<Historique />} />
 
+                    {/* Benificiaires - ADMIN only */}
+                    <Route 
+                      path="/benificiaires" 
+                      element={
+                        <ProtectedRoute requireAdmin={true}>
+                          <Benificiaires />
+                        </ProtectedRoute>
+                      } 
+                    />
+
                     {/* Rapports - ADMIN only */}
-                    {/* <Route 
+                    <Route 
                       path="/rapports" 
                       element={
                         <ProtectedRoute requireAdmin={true}>
                           <Rapports />
                         </ProtectedRoute>
                       } 
-                    /> */}
+                    />
 
                     {/* 404 - Redirect to dashboard */}
                     <Route path="*" element={<Navigate to="/" replace />} />

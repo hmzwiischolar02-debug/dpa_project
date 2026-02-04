@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api import auth, approvisionnement, dotation, stats, vehicules, services
+from app.api import auth, approvisionnement, dotation, stats, vehicules, services, benificiaires
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -25,6 +25,7 @@ app.include_router(dotation.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
 app.include_router(vehicules.router, prefix="/api")
 app.include_router(services.router, prefix="/api")
+app.include_router(benificiaires.router, prefix="/api")
 
 @app.get("/")
 async def root():
@@ -62,6 +63,7 @@ async def api_info():
             "dotation": "/api/dotation",
             "stats": "/api/stats",
             "vehicules": "/api/vehicules",
-            "services": "/api/services"
+            "services": "/api/services",
+            "benificiaires": "/api/benificiaires"
         }
     }

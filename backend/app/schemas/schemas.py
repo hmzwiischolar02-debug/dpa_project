@@ -18,12 +18,21 @@ class UserInfo(BaseModel):
     statut: str
 
 # ============= Service Schemas =============
+class ServiceCreate(BaseModel):
+    nom: str
+    direction: str
+
 class Service(BaseModel):
     id: int
     nom: str
     direction: str
 
 # ============= Benificiaire Schemas =============
+class BenificiaireCreate(BaseModel):
+    nom: str
+    fonction: str
+    service_id: int
+
 class Benificiaire(BaseModel):
     id: int
     matricule: str
@@ -34,10 +43,14 @@ class Benificiaire(BaseModel):
 # ============= Vehicle Schemas =============
 class VehiculeBase(BaseModel):
     police: str
-    nCivil: str
+    nCivil: str = Field(alias='ncivil')
     marque: Optional[str] = None
     carburant: str
     km: int = Field(ge=0)
+
+    class Config:
+        populate_by_name = True
+        from_attributes = True
 
 class VehiculeCreate(VehiculeBase):
     pass

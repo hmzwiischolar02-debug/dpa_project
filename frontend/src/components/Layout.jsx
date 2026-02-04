@@ -52,7 +52,7 @@ export default function Layout({ children }) {
       roles: ['ADMIN']  // ADMIN only
     },
     { 
-      path: '/beneficiaires', 
+      path: '/benificiaires', 
       icon: Users, 
       label: 'Bénéficiaires', 
       roles: ['ADMIN']  // ADMIN only

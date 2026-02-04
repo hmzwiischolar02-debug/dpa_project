@@ -1,14 +1,27 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { FileText, CheckCircle, XCircle } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { FileText, CheckCircle, XCircle, Plus, Edit2, Trash2, Lock, Unlock } from 'lucide-react';
 import { dotationService } from '../services/dotation';
+import { vehiculesService, benificiairesService } from '../services/vehicules';
 import { getUser } from '../services/auth';
-import ReadOnlyBanner from '../components/Readonlybanner';
+import ReadOnlyBanner from '../components/ReadOnlyBanner';
+import toast from 'react-hot-toast';
 
 export default function Dotation() {
   const [activeTab, setActiveTab] = useState('active');
+  const [showForm, setShowForm] = useState(false);
+  const [editingDotation, setEditingDotation] = useState(null);
+  const [formData, setFormData] = useState({
+    vehicule_id: '',
+    benificiaire_id: '',
+    mois: new Date().getMonth() + 1,
+    annee: new Date().getFullYear(),
+    qte: ''
+  });
+
   const user = getUser();
   const isAdmin = user?.role === 'ADMIN';
+  const queryClient = useQueryClient();
 
   // Fetch active dotations
   const { data: activeDotations, isLoading: loadingActive } = useQuery({
@@ -24,6 +37,100 @@ export default function Dotation() {
     enabled: activeTab === 'archived'
   });
 
+  // Fetch vehicles for form
+  const { data: vehicles } = useQuery({
+    queryKey: ['vehicles'],
+    queryFn: () => vehiculesService.getAll(true),
+    enabled: isAdmin
+  });
+
+  // Fetch beneficiaires for form
+  const { data: beneficiaires } = useQuery({
+    queryKey: ['beneficiaires'],
+    queryFn: () => benificiairesService.getAll(),
+    enabled: isAdmin
+  });
+
+  // Create/Update dotation mutation
+  const saveMutation = useMutation({
+    mutationFn: (data) => dotationService.create(data),
+    onSuccess: () => {
+      toast.success('Dotation enregistrée!');
+      queryClient.invalidateQueries(['dotations']);
+      queryClient.invalidateQueries(['dashboard-stats']);
+      resetForm();
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.detail || 'Erreur lors de l\'enregistrement');
+    }
+  });
+
+  // Delete dotation mutation
+  const deleteMutation = useMutation({
+    mutationFn: (id) => dotationService.delete(id),
+    onSuccess: () => {
+      toast.success('Dotation supprimée!');
+      queryClient.invalidateQueries(['dotations']);
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.detail || 'Erreur lors de la suppression');
+    }
+  });
+
+  // Close dotation mutation
+  const closeMutation = useMutation({
+    mutationFn: (id) => dotationService.close(id),
+    onSuccess: () => {
+      toast.success('Dotation clôturée!');
+      queryClient.invalidateQueries(['dotations']);
+      queryClient.invalidateQueries(['dashboard-stats']);
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.detail || 'Erreur lors de la clôture');
+    }
+  });
+
+  const resetForm = () => {
+    setFormData({
+      vehicule_id: '',
+      benificiaire_id: '',
+      mois: new Date().getMonth() + 1,
+      annee: new Date().getFullYear(),
+      qte: ''
+    });
+    setEditingDotation(null);
+    setShowForm(false);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
+    if (!formData.vehicule_id || !formData.benificiaire_id || !formData.qte) {
+      toast.error('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    saveMutation.mutate({
+      vehicule_id: parseInt(formData.vehicule_id),
+      benificiaire_id: parseInt(formData.benificiaire_id),
+      mois: parseInt(formData.mois),
+      annee: parseInt(formData.annee),
+      qte: parseFloat(formData.qte)
+    });
+  };
+
+  const handleDelete = (id) => {
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette dotation ?')) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  const handleClose = (id) => {
+    if (window.confirm('Êtes-vous sûr de vouloir clôturer cette dotation ? Cette action est irréversible.')) {
+      closeMutation.mutate(id);
+    }
+  };
+
   const currentData = activeTab === 'active' ? activeDotations : archivedDotations;
   const isLoading = activeTab === 'active' ? loadingActive : loadingArchived;
 
@@ -36,21 +143,156 @@ export default function Dotation() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-          <FileText className="h-8 w-8 text-indigo-600" />
-          Gestion des Dotations
-        </h1>
-        <p className="text-gray-600">
-          {isAdmin 
-            ? 'Gérer les quotas mensuels de carburant'
-            : 'Consulter les dotations mensuelles'
-          }
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+            <FileText className="h-8 w-8 text-indigo-600" />
+            Gestion des Dotations
+          </h1>
+          <p className="text-gray-600">
+            {isAdmin 
+              ? 'Gérer les quotas mensuels de carburant'
+              : 'Consulter les dotations mensuelles'
+            }
+          </p>
+        </div>
+        
+        {isAdmin && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="h-5 w-5" />
+            Nouvelle dotation
+          </button>
+        )}
       </div>
 
       {/* Read-Only Banner for AGENT */}
       {!isAdmin && <ReadOnlyBanner />}
+
+      {/* Create/Edit Form */}
+      {isAdmin && showForm && (
+        <div className="card p-6 animate-slide-in">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Nouvelle dotation mensuelle
+          </h3>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Vehicle Selection */}
+              <div>
+                <label className="label">
+                  Véhicule <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.vehicule_id}
+                  onChange={(e) => setFormData({...formData, vehicule_id: e.target.value})}
+                  className="input-field"
+                  required
+                >
+                  <option value="">Sélectionner un véhicule</option>
+                  {vehicles?.map(v => (
+                    <option key={v.id} value={v.id}>
+                      {v.police} - {v.marque || 'N/A'} ({v.carburant})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Beneficiaire Selection */}
+              <div>
+                <label className="label">
+                  Bénéficiaire <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.benificiaire_id}
+                  onChange={(e) => setFormData({...formData, benificiaire_id: e.target.value})}
+                  className="input-field"
+                  required
+                >
+                  <option value="">Sélectionner un bénéficiaire</option>
+                  {beneficiaires?.map(b => (
+                    <option key={b.id} value={b.id}>
+                      {b.nom} - {b.fonction}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Month */}
+              <div>
+                <label className="label">
+                  Mois <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.mois}
+                  onChange={(e) => setFormData({...formData, mois: e.target.value})}
+                  className="input-field"
+                  required
+                >
+                  {[...Array(12)].map((_, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {new Date(2000, i).toLocaleString('fr-FR', { month: 'long' })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Year */}
+              <div>
+                <label className="label">
+                  Année <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.annee}
+                  onChange={(e) => setFormData({...formData, annee: e.target.value})}
+                  className="input-field"
+                  required
+                >
+                  {[...Array(3)].map((_, i) => {
+                    const year = new Date().getFullYear() + i;
+                    return <option key={year} value={year}>{year}</option>
+                  })}
+                </select>
+              </div>
+
+              {/* Quantity */}
+              <div className="md:col-span-2">
+                <label className="label">
+                  Quantité (Litres) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={formData.qte}
+                  onChange={(e) => setFormData({...formData, qte: e.target.value})}
+                  className="input-field"
+                  placeholder="Ex: 120"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button
+                type="button"
+                onClick={resetForm}
+                className="btn-secondary"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={saveMutation.isPending}
+                className="btn-primary flex-1"
+              >
+                {saveMutation.isPending ? 'Enregistrement...' : 'Créer la dotation'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
@@ -109,10 +351,11 @@ export default function Dotation() {
                   <th className="px-6 py-3 text-left table-header">Bénéficiaire</th>
                   <th className="px-6 py-3 text-left table-header">Service</th>
                   <th className="px-6 py-3 text-left table-header">Période</th>
-                  <th className="px-6 py-3 text-left table-header">Quota</th>
+                  <th className="px-6 py-3 text-left table-header">Qte dotation</th>
                   <th className="px-6 py-3 text-left table-header">Consommé</th>
                   <th className="px-6 py-3 text-left table-header">Reste</th>
                   <th className="px-6 py-3 text-left table-header">Statut</th>
+                  {isAdmin && <th className="px-6 py-3 text-left table-header">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -173,6 +416,34 @@ export default function Dotation() {
                         {dotation.cloture ? 'Clôturé' : 'Actif'}
                       </span>
                     </td>
+                    
+                    {isAdmin && (
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          {!dotation.cloture && (
+                            <>
+                              <button
+                                onClick={() => handleDelete(dotation.id)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Supprimer"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleClose(dotation.id)}
+                                className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                                title="Clôturer"
+                              >
+                                <Lock className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
+                          {dotation.cloture && (
+                            <span className="text-xs text-gray-500">Clôturé</span>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -202,7 +473,7 @@ export default function Dotation() {
             <p className="text-2xl font-bold text-blue-900">{currentData.length}</p>
           </div>
           <div className="card p-4 bg-gradient-to-br from-green-50 to-green-100">
-            <p className="text-sm text-green-600 mb-1">Quota Total</p>
+            <p className="text-sm text-green-600 mb-1">Qte dotation Total</p>
             <p className="text-2xl font-bold text-green-900">
               {currentData.reduce((sum, d) => sum + d.qte, 0)} L
             </p>

@@ -100,7 +100,7 @@ export default function Statistiques() {
         <div className="stat-card bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-purple-600 mb-1">Quota Total</p>
+              <p className="text-sm font-medium text-purple-600 mb-1">Qte dotation Total</p>
               <p className="text-3xl font-bold text-purple-900">
                 {dashboard?.quota_total || 0}
                 <span className="text-lg ml-1">L</span>

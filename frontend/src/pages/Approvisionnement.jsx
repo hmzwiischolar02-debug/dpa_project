@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, Fuel, CheckCircle, AlertCircle } from 'lucide-react';
+import { Search, Fuel, CheckCircle, AlertCircle, Plus, ArrowLeft } from 'lucide-react';
 import { approvisionnementService } from '../services/approvisionnement';
+import ApprovisionnementList from '../components/Approvisionnementlist';
 import toast from 'react-hot-toast';
 
 export default function Approvisionnement() {
+  const [showForm, setShowForm] = useState(false);
   const [searchPolice, setSearchPolice] = useState('');
   const [vehicleData, setVehicleData] = useState(null);
   const [formData, setFormData] = useState({
@@ -79,8 +81,8 @@ export default function Approvisionnement() {
     const qte = parseFloat(formData.qte);
     const km = parseInt(formData.km);
     
-    if (qte <= 0 || km <= vehicleData.km) {
-      toast.error('Valeurs invalides');
+    if (qte <= 0) {
+      toast.error('La quantité doit être supérieure à 0');
       return;
     }
 
@@ -89,6 +91,31 @@ export default function Approvisionnement() {
       return;
     }
 
+    // CHECK: KM less than previous KM (vehicle breakdown case)
+    if (km < vehicleData.km) {
+      const kmDifference = vehicleData.km - km;
+      const confirmMessage = `⚠️ ATTENTION: Kilométrage Inférieur\n\n` +
+        `KM actuel: ${km}\n` +
+        `KM précédent: ${vehicleData.km}\n` +
+        `Différence: -${kmDifference} km\n\n` +
+        `Cela indique généralement une panne du véhicule.\n\n` +
+        `Avez-vous ajouté une observation expliquant cette situation ?`;
+      
+      if (!window.confirm(confirmMessage)) {
+        toast.error('Opération annulée');
+        return;
+      }
+
+      // Force user to add observation if not already present
+      if (!formData.observations || formData.observations.trim() === '') {
+        toast.error('⚠️ Veuillez ajouter une observation expliquant pourquoi le kilométrage est inférieur (ex: panne, réparation, compteur défectueux)');
+        // Focus on observations field
+        document.querySelector('textarea[name="observations"]')?.focus();
+        return;
+      }
+    }
+
+    // Proceed with creation
     createMutation.mutate({
       dotation_id: vehicleData.dotation_id,
       qte,
@@ -103,18 +130,60 @@ export default function Approvisionnement() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-          <Fuel className="h-8 w-8 text-blue-600" />
-          Approvisionnement DOTATION
-        </h1>
-        <p className="text-gray-600">
-          Enregistrer un approvisionnement sur dotation mensuelle
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+            <Fuel className="h-8 w-8 text-blue-600" />
+            Approvisionnement DOTATION
+          </h1>
+          <p className="text-gray-600">
+            {showForm 
+              ? "Enregistrer un approvisionnement sur dotation mensuelle"
+              : "Liste des approvisionnements DOTATION"
+            }
+          </p>
+        </div>
+
+        {/* Toggle Button */}
+        {showForm ? (
+          <button
+            onClick={() => {
+              setShowForm(false);
+              setVehicleData(null);
+              setSearchPolice('');
+              setFormData({
+                qte: '',
+                km: '',
+                vhc_provisoire: '',
+                km_provisoire: '',
+                observations: ''
+              });
+            }}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <ArrowLeft className="h-5 w-5" />
+            Retour à la liste
+          </button>
+        ) : (
+          <button
+            onClick={() => setShowForm(true)}
+            className="btn-dotation flex items-center gap-2"
+          >
+            <Plus className="h-5 w-5" />
+            Nouvel approvisionnement
+          </button>
+        )}
       </div>
 
-      {/* Search Section */}
-      <div className="card p-6">
+      {/* Show List or Form */}
+      {!showForm ? (
+        /* List View */
+        <ApprovisionnementList typeFilter="DOTATION" />
+      ) : (
+        /* Form View */
+        <>
+          {/* Search Section */}
+          <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           Rechercher un véhicule
         </h2>
@@ -181,7 +250,7 @@ export default function Approvisionnement() {
             </div>
 
             <div className="bg-white rounded-lg p-4">
-              <p className="text-xs text-gray-600 mb-1">Quota / Consommé</p>
+              <p className="text-xs text-gray-600 mb-1">Qte dotation / Consommé</p>
               <p className="font-semibold text-gray-900">
                 {vehicleData.quota} L / {vehicleData.qte_consomme.toFixed(2)} L
               </p>
@@ -294,15 +363,32 @@ export default function Approvisionnement() {
             {/* Observations */}
             <div>
               <label className="label">
-                Observations
+                Observations {formData.km && vehicleData && parseInt(formData.km) < vehicleData.km && (
+                  <span className="text-red-500">* (Obligatoire - KM inférieur détecté)</span>
+                )}
               </label>
               <textarea
+                name="observations"
                 value={formData.observations}
                 onChange={(e) => setFormData({...formData, observations: e.target.value})}
-                className="input-field"
+                className={`input-field ${
+                  formData.km && vehicleData && parseInt(formData.km) < vehicleData.km 
+                    ? 'border-red-300 ring-2 ring-red-200' 
+                    : ''
+                }`}
                 rows="3"
-                placeholder="Remarques éventuelles..."
+                placeholder={
+                  formData.km && vehicleData && parseInt(formData.km) < vehicleData.km
+                    ? "OBLIGATOIRE: Expliquer pourquoi le kilométrage est inférieur (ex: panne moteur, réparation au garage, compteur défectueux...)"
+                    : "Remarques éventuelles..."
+                }
               />
+              {formData.km && vehicleData && parseInt(formData.km) < vehicleData.km && (
+                <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
+                  <span>⚠️</span>
+                  <span>Veuillez expliquer pourquoi le kilométrage ({formData.km} km) est inférieur au précédent ({vehicleData.km} km)</span>
+                </p>
+              )}
             </div>
 
             {/* Submit Button */}
@@ -342,6 +428,8 @@ export default function Approvisionnement() {
             Recherchez un véhicule par son numéro de police pour commencer
           </p>
         </div>
+      )}
+        </>
       )}
     </div>
   );
