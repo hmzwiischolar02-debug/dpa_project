@@ -283,74 +283,6 @@ export default function Vehicules() {
             <div className="spinner mx-auto mb-4"></div>
             <p className="text-gray-600">Chargement...</p>
           </div>
-<<<<<<< HEAD
-        ) : filteredVehicles.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left table-header">Police</th>
-                  <th className="px-6 py-3 text-left table-header">N° Civil</th>
-                  <th className="px-6 py-3 text-left table-header">Marque</th>
-                  <th className="px-6 py-3 text-left table-header">Carburant</th>
-                  <th className="px-6 py-3 text-left table-header">Kilométrage</th>
-                  <th className="px-6 py-3 text-left table-header">Statut</th>
-                  <th className="px-6 py-3 text-left table-header">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredVehicles.map((vehicle) => (
-                  <tr key={vehicle.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <p className="font-semibold text-gray-900">{vehicle.police}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-gray-900">{vehicle.ncivil}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-gray-900">{vehicle.marque || 'N/A'}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                        vehicle.carburant === 'gazoil'
-                          ? 'bg-orange-100 text-orange-700'
-                          : 'bg-green-100 text-green-700'
-                      }`}>
-                        {vehicle.carburant}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-gray-900">{vehicle.km.toLocaleString()} km</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                        vehicle.actif
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-700'
-                      }`}>
-                        {vehicle.actif ? 'Actif' : 'Inactif'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleEdit(vehicle)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors group"
-                          title="Modifier"
-                        >
-                          <Edit2 className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(vehicle)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors group"
-                          title="Désactiver"
-                          disabled={!vehicle.actif}
-                        >
-                          <Trash2 className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                        </button>
-                      </div>
-                    </td>
-=======
         ) : paginatedVehicles.length > 0 ? (
           <>
             <div className="overflow-x-auto">
@@ -363,7 +295,6 @@ export default function Vehicules() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Carburant</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kilométrage</th>
                     {isAdmin && <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>}
->>>>>>> 1ac032546f8f1bd79da350225703e5e1da78359f
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
