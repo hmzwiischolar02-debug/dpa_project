@@ -220,12 +220,28 @@ async def list_approvisionnements(
         cur.execute(count_query, params)
         total = cur.fetchone()['total']
         
-        # Get paginated results
+        # Get paginated results with JOINs
         offset = (page - 1) * per_page
         cur.execute(f"""
-            SELECT * FROM approvisionnement
+            SELECT 
+                a.id, a.type_approvi, a.date, a.qte, a.km_precedent, a.km,
+                a.vhc_provisoire, a.km_provisoire, a.observations,
+                a.dotation_id, a.police_vehicule, a.matricule_conducteur, a.service_externe,
+                -- DOTATION related data
+                COALESCE(v.police, a.police_vehicule) as police,
+                COALESCE(b.nom, a.matricule_conducteur) as benificiaire_nom,
+                COALESCE(s.nom, a.service_externe) as service_nom,
+                COALESCE(v.marque, '') as marque,
+                COALESCE(v.carburant, 'gazoil') as carburant,
+                COALESCE(b.fonction, '') as benificiaire_fonction,
+                COALESCE(s.direction, '') as direction
+            FROM approvisionnement a
+            LEFT JOIN dotation d ON a.dotation_id = d.id AND a.type_approvi = 'DOTATION'
+            LEFT JOIN vehicule v ON d.vehicule_id = v.id
+            LEFT JOIN benificiaire b ON d.benificiaire_id = b.id
+            LEFT JOIN service s ON b.service_id = s.id
             {where_clause}
-            ORDER BY date DESC, id DESC
+            ORDER BY a.date DESC, a.id DESC
             LIMIT %s OFFSET %s
         """, params + [per_page, offset])
         
@@ -302,3 +318,162 @@ async def delete_approvisionnement(
         
         conn.commit()
         return {"success": True, "message": "Approvisionnement supprimé"}
+    
+    # ADD THIS TO backend/app/api/approvisionnement.py
+
+@router.get("/last-km/{police}")
+async def get_last_km_for_vehicle(
+    police: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get the last recorded KM for a vehicle by police number"""
+    with get_db() as conn:
+        cur = get_db_cursor(conn)
+        
+        # Try to find from DOTATION approvisionnements first
+        cur.execute("""
+            SELECT a.km
+            FROM approvisionnement a
+            JOIN dotation d ON a.dotation_id = d.id
+            JOIN vehicule v ON d.vehicule_id = v.id
+            WHERE v.police = %s AND a.type_approvi = 'DOTATION'
+            ORDER BY a.date DESC, a.id DESC
+            LIMIT 1
+        """, (police,))
+        
+        result = cur.fetchone()
+        
+        if result:
+            return {
+                "police": police,
+                "last_km": result['km'],
+                "source": "dotation"
+            }
+        
+        # If not found in dotation, try MISSION approvisionnements
+        cur.execute("""
+            SELECT km
+            FROM approvisionnement
+            WHERE police_vehicule = %s AND type_approvi = 'MISSION'
+            ORDER BY date DESC, id DESC
+            LIMIT 1
+        """, (police,))
+        
+        result = cur.fetchone()
+        
+        if result:
+            return {
+                "police": police,
+                "last_km": result['km'],
+                "source": "mission"
+            }
+        
+        # If still not found, try from vehicule table
+        cur.execute("""
+            SELECT km
+            FROM vehicule
+            WHERE police = %s
+        """, (police,))
+        
+        result = cur.fetchone()
+        
+        if result:
+            return {
+                "police": police,
+                "last_km": result['km'],
+                "source": "vehicule"
+            }
+        
+        # Not found anywhere
+        return {
+            "police": police,
+            "last_km": None,
+            "source": None
+        }
+    
+
+    # REPLACE THE /list ENDPOINT IN backend/app/api/approvisionnement.py with this:
+
+# REPLACE the /list endpoint in backend/app/api/approvisionnement.py
+
+@router.get("/list", response_model=dict)
+async def list_approvisionnements(
+    page: int = 1,
+    per_page: int = 20,
+    type_filter: str = None,
+    date_from: str = None,
+    date_to: str = None,
+    mois: int = None,
+    annee: int = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """List all approvisionnements with filters and pagination - WITH JOINED DATA"""
+    with get_db() as conn:
+        cur = get_db_cursor(conn)
+        
+        # Build WHERE clauses
+        where_clauses = []
+        params = []
+        
+        if type_filter and type_filter != 'all':
+            where_clauses.append("a.type_approvi = %s")
+            params.append(type_filter)
+        
+        if date_from:
+            where_clauses.append("a.date >= %s")
+            params.append(date_from)
+        
+        if date_to:
+            where_clauses.append("a.date <= %s")
+            params.append(date_to)
+        
+        if mois and annee:
+            where_clauses.append("EXTRACT(MONTH FROM a.date) = %s AND EXTRACT(YEAR FROM a.date) = %s")
+            params.extend([mois, annee])
+        elif annee:
+            where_clauses.append("EXTRACT(YEAR FROM a.date) = %s")
+            params.append(annee)
+        
+        where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+        
+        # Count total
+        count_query = f"""
+            SELECT COUNT(*) as total 
+            FROM approvisionnement a
+            LEFT JOIN dotation d ON a.dotation_id = d.id AND a.type_approvi = 'DOTATION'
+            {where_clause}
+        """
+        cur.execute(count_query, params)
+        total = cur.fetchone()['total']
+        
+        # Get paginated results WITH JOINS
+        offset = (page - 1) * per_page
+        list_query = f"""
+            SELECT 
+                a.*,
+                CASE WHEN a.type_approvi = 'DOTATION' THEN b.fonction ELSE NULL END as fonction,
+                CASE WHEN a.type_approvi = 'DOTATION' THEN s.direction ELSE NULL END as direction,
+                CASE WHEN a.type_approvi = 'DOTATION' THEN b.nom ELSE a.matricule_conducteur END as benificiaire_nom,
+                CASE WHEN a.type_approvi = 'DOTATION' THEN s.nom ELSE a.service_externe END as service_nom,
+                CASE WHEN a.type_approvi = 'DOTATION' THEN v.police ELSE a.police_vehicule END as police,
+                CASE WHEN a.type_approvi = 'DOTATION' THEN v.marque ELSE NULL END as marque,
+                CASE WHEN a.type_approvi = 'DOTATION' THEN v.carburant ELSE 'gazoil' END as carburant
+            FROM approvisionnement a
+            LEFT JOIN dotation d ON a.dotation_id = d.id AND a.type_approvi = 'DOTATION'
+            LEFT JOIN benificiaire b ON d.benificiaire_id = b.id
+            LEFT JOIN service s ON b.service_id = s.id
+            LEFT JOIN vehicule v ON d.vehicule_id = v.id
+            {where_clause}
+            ORDER BY a.date DESC, a.id DESC
+            LIMIT %s OFFSET %s
+        """
+        cur.execute(list_query, params + [per_page, offset])
+        
+        results = cur.fetchall()
+        return {
+            "items": [dict(r) for r in results],
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "pages": (total + per_page - 1) // per_page if total > 0 else 0
+        }

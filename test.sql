@@ -548,13 +548,13 @@ INSERT INTO users (username, password, role) VALUES
 INSERT INTO service (nom, direction) VALUES
 ('SCL', 'DEB'),
 ('SAH', 'DRH'),
-('SIT Comptabilité', 'DSIC');
+('SIT', 'DSIC');
 
 -- Insert sample beneficiaires
 INSERT INTO benificiaire (matricule, nom, fonction, service_id) VALUES
 ('B001', 'ALAMI Ahmed', 'Chef Service', 1),
-('B002', 'BENNANI Fatima', 'Directeur', 2),
-('B003', 'TAZI Mohammed', 'Responsable', 3);
+('B002', 'BENNANI Fatima', 'Chef Division', 2),
+('B003', 'TAZI Mohammed', 'Chef section', 3);
 
 -- Insert sample vehicules
 INSERT INTO vehicule (police, nCivil, marque, carburant, km) VALUES

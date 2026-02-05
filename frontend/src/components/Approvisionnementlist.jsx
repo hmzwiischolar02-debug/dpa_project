@@ -6,6 +6,7 @@ import { getUser } from '../services/auth';
 import TypeBadge from './TypeBadge';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { printApprovisionnementPDF } from '../utils/Printapprovisionnement';
 
 export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 'all' }) {
   const [currentPage, setCurrentPage] = useState(1);
@@ -62,6 +63,11 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
     if (window.confirm('Êtes-vous sûr de vouloir supprimer cet approvisionnement ?')) {
       deleteMutation.mutate(id);
     }
+  };
+
+  const handlePrint = (item) => {
+    printApprovisionnementPDF(item);
+    toast.success('Impression du bon en cours...');
   };
 
   const handleExportCSV = () => {
@@ -188,7 +194,7 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
                     <th className="px-6 py-3 text-left table-header">Type</th>
                     <th className="px-6 py-3 text-left table-header">Date</th>
                     <th className="px-6 py-3 text-left table-header">Véhicule</th>
-                    <th className="px-6 py-3 text-left table-header">Responsable</th>
+                    <th className="px-6 py-3 text-left table-header">Benificiaire</th>
                     <th className="px-6 py-3 text-left table-header">Service</th>
                     <th className="px-6 py-3 text-left table-header">Quantité</th>
                     <th className="px-6 py-3 text-left table-header">KM</th>
@@ -213,6 +219,7 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
                         <p className="font-semibold text-gray-900">
                           {item.police || item.police_vehicule || 'N/A'}
                         </p>
+                        <p className="text-sm text-gray-600">{item.marque}</p>
                         {item.vhc_provisoire && (
                           <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
                             Provisoire: {item.vhc_provisoire}
@@ -223,11 +230,13 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
                         <p className="text-sm text-gray-900">
                           {item.benificiaire_nom || item.matricule_conducteur || 'N/A'}
                         </p>
+                        <p className="text-sm text-gray-600">{item.benificiaire_fonction}</p>
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-sm text-gray-900">
                           {item.service_nom || item.service_externe || 'N/A'}
                         </p>
+                        <p className="text-sm text-gray-600">{item.direction}</p>
                       </td>
                       <td className="px-6 py-4">
                         <p className="font-semibold text-gray-900">{item.qte} L</p>
@@ -244,6 +253,7 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             <button
+                              onClick={() => handlePrint(item)}
                               className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                               title="Imprimer"
                             >

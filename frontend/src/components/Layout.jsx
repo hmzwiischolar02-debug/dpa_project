@@ -27,7 +27,7 @@ export default function Layout({ children }) {
       icon: Fuel, 
       label: 'Approvisionnement', 
       roles: ['ADMIN', 'AGENT'],
-      badge: 'DOTATION',
+      badge: 'DOT',
       badgeColor: 'bg-blue-100 text-blue-700'
     },
     { 

@@ -1,18 +1,20 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Car, Plus, Edit2, Trash2, Filter, Search } from 'lucide-react';
+import { Car, Plus, Edit2, Trash2, Filter, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { vehiculesService } from '../services/vehicules';
-import Pagination from '../components/Pagination';
-import SearchInput from '../components/SearchInput';
+import { getUser } from '../services/auth';
+import ReadOnlyBanner from '../components/ReadOnlyBanner';
 import toast from 'react-hot-toast';
 
 export default function Vehicules() {
   const [filterFuel, setFilterFuel] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState(null);
-  const [page, setPage] = useState(1);
+  
+  // CLIENT-SIDE PAGINATION (like Approvisionnement)
+  const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
-  const perPage = 20;
+  const itemsPerPage = 10;
   
   const [formData, setFormData] = useState({
     police: '',
@@ -22,18 +24,15 @@ export default function Vehicules() {
     km: 0
   });
 
+  const user = getUser();
+  const isAdmin = user?.role === 'ADMIN';
   const queryClient = useQueryClient();
 
-  // Fetch vehicles with pagination and search
-  const { data: vehiclesData, isLoading } = useQuery({
-    queryKey: ['vehicles', page, searchTerm],
-    queryFn: () => vehiculesService.getAll({ page, per_page: perPage, active_only: true, search: searchTerm })
+  // Fetch ALL vehicles (no pagination)
+  const { data: vehicles, isLoading } = useQuery({
+    queryKey: ['vehicles'],
+    queryFn: () => vehiculesService.getAll({ page: 1, per_page: 1000, active_only: true })
   });
-
-  // Extract data
-  const vehicles = Array.isArray(vehiclesData) ? vehiclesData : (vehiclesData?.items || []);
-  const totalPages = vehiclesData?.pages || 1;
-  const totalItems = vehiclesData?.total || 0;
 
   // Create/Update mutation
   const saveMutation = useMutation({
@@ -64,6 +63,8 @@ export default function Vehicules() {
   });
 
   const resetForm = () => {
+    setShowForm(false);
+    setEditingVehicle(null);
     setFormData({
       police: '',
       nCivil: '',
@@ -71,130 +72,135 @@ export default function Vehicules() {
       carburant: 'gazoil',
       km: 0
     });
-    setEditingVehicle(null);
-    setShowForm(false);
   };
 
   const handleEdit = (vehicle) => {
     setEditingVehicle(vehicle);
     setFormData({
       police: vehicle.police,
-      nCivil: vehicle.nCivil,
-      marque: vehicle.marque || '',
+      nCivil: vehicle.ncivil,
+      marque: vehicle.marque,
       carburant: vehicle.carburant,
       km: vehicle.km
     });
     setShowForm(true);
   };
 
-  const handleDelete = (vehicle) => {
-    if (window.confirm(`Désactiver le véhicule ${vehicle.police} ?`)) {
-      deleteMutation.mutate(vehicle.id);
-    }
-  };
-
   const handleSubmit = (e) => {
     e.preventDefault();
-    
-    if (!formData.police || !formData.nCivil || !formData.carburant) {
-      toast.error('Veuillez remplir tous les champs obligatoires');
-      return;
-    }
-
     saveMutation.mutate(formData);
   };
 
-  // Filter vehicles
-  const filteredVehicles = vehicles?.filter(v => 
-    filterFuel === 'all' || v.carburant === filterFuel
-  ) || [];
+  const handleDelete = (id) => {
+    if (window.confirm('Êtes-vous sûr de vouloir désactiver ce véhicule?')) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  // CLIENT-SIDE FILTERING & PAGINATION (like Approvisionnement)
+  const filteredVehicles = (vehicles?.items || []).filter(item => {
+    // Search filter
+    const matchesSearch = searchTerm === '' || 
+      item.police?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.ncivil?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.marque?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Fuel filter
+    const matchesFuel = filterFuel === 'all' || item.carburant === filterFuel;
+    
+    return matchesSearch && matchesFuel;
+  });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredVehicles.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedVehicles = filteredVehicles.slice(startIndex, endIndex);
+
+  const handleSearchChange = (value) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
+
+  const handleFuelFilterChange = (value) => {
+    setFilterFuel(value);
+    setCurrentPage(1);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {!isAdmin && <ReadOnlyBanner />}
+
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-            <Car className="h-8 w-8 text-primary-600" />
-            Gestion des Véhicules
-          </h1>
-          <p className="text-gray-600">
-            Gérer le parc automobile (ADMIN uniquement)
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+            <Car className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Véhicules</h1>
+            <p className="text-gray-600">Gestion du parc automobile</p>
+          </div>
         </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowForm(!showForm);
-          }}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus className="h-5 w-5" />
-          {showForm ? 'Annuler' : 'Nouveau véhicule'}
-        </button>
+
+        {isAdmin && !showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="h-5 w-5" />
+            Nouveau véhicule
+          </button>
+        )}
       </div>
 
       {/* Form */}
-      {showForm && (
-        <div className="card p-6 animate-slide-in border-2 border-primary-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              {editingVehicle ? '✏️ Modifier le véhicule' : '➕ Nouveau véhicule'}
-            </h3>
-            {editingVehicle && (
-              <span className="text-sm px-3 py-1 bg-blue-100 text-blue-700 rounded-full">
-                ID: {editingVehicle.id}
-              </span>
-            )}
-          </div>
+      {isAdmin && showForm && (
+        <div className="card p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            {editingVehicle ? 'Modifier' : 'Ajouter'} un véhicule
+          </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="label">
-                  Numéro de police <span className="text-red-500">*</span>
-                </label>
+                <label className="label">Police <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={formData.police}
-                  onChange={(e) => setFormData({...formData, police: e.target.value})}
+                  onChange={(e) => setFormData({...formData, police: e.target.value.toUpperCase()})}
                   className="input-field"
-                  placeholder="Ex: 12345"
+                  placeholder="Ex: 78901"
                   required
                 />
               </div>
 
               <div>
-                <label className="label">
-                  Numéro civil <span className="text-red-500">*</span>
-                </label>
+                <label className="label">N° Civil <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={formData.nCivil}
-                  onChange={(e) => setFormData({...formData, nCivil: e.target.value})}
+                  onChange={(e) => setFormData({...formData, nCivil: e.target.value.toUpperCase()})}
                   className="input-field"
-                  placeholder="Ex: 12345-C-1"
+                  placeholder="Ex: 259423"
                   required
                 />
               </div>
 
               <div>
-                <label className="label">
-                  Marque
-                </label>
+                <label className="label">Marque <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={formData.marque}
                   onChange={(e) => setFormData({...formData, marque: e.target.value})}
                   className="input-field"
-                  placeholder="Ex: Peugeot Partner"
+                  placeholder="Ex: DACIA DOKKER"
+                  required
                 />
               </div>
 
               <div>
-                <label className="label">
-                  Type de carburant <span className="text-red-500">*</span>
-                </label>
+                <label className="label">Carburant <span className="text-red-500">*</span></label>
                 <select
                   value={formData.carburant}
                   onChange={(e) => setFormData({...formData, carburant: e.target.value})}
@@ -206,17 +212,14 @@ export default function Vehicules() {
                 </select>
               </div>
 
-              <div>
-                <label className="label">
-                  Kilométrage initial <span className="text-red-500">*</span>
-                </label>
+              <div className="md:col-span-2">
+                <label className="label">Kilométrage <span className="text-red-500">*</span></label>
                 <input
                   type="number"
                   value={formData.km}
-                  onChange={(e) => setFormData({...formData, km: parseInt(e.target.value)})}
+                  onChange={(e) => setFormData({...formData, km: e.target.value})}
                   className="input-field"
-                  placeholder="0"
-                  min="0"
+                  placeholder="Ex: 31500"
                   required
                 />
               </div>
@@ -235,60 +238,40 @@ export default function Vehicules() {
                 disabled={saveMutation.isPending}
                 className="btn-primary flex-1"
               >
-                {saveMutation.isPending ? 'Enregistrement...' : editingVehicle ? 'Modifier' : 'Ajouter'}
+                {saveMutation.isPending ? 'Enregistrement...' : (editingVehicle ? 'Modifier' : 'Ajouter')}
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* Filter and Search */}
+      {/* Search & Filter */}
       <div className="card p-4">
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-          <div className="flex items-center gap-4 flex-1">
-            <Filter className="h-5 w-5 text-gray-400" />
-            <div className="flex gap-2">
-              <button
-                onClick={() => setFilterFuel('all')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  filterFuel === 'all'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Tous ({vehicles?.length || 0})
-              </button>
-              <button
-                onClick={() => setFilterFuel('gazoil')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  filterFuel === 'gazoil'
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                }`}
-              >
-                Gazoil ({vehicles?.filter(v => v.carburant === 'gazoil').length || 0})
-              </button>
-              <button
-              onClick={() => setFilterFuel('essence')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filterFuel === 'essence'
-                  ? 'bg-green-500 text-white'
-                  : 'bg-green-100 text-green-700 hover:bg-green-200'
-              }`}
-            >
-              Essence ({vehicles?.filter(v => v.carburant === 'essence').length || 0})
-            </button>
-          </div>
-          </div>
-          <div className="flex-1">
-            <SearchInput
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Rechercher par police, n°civil ou marque..."
               value={searchTerm}
-              onChange={(value) => {
-                setSearchTerm(value);
-                setPage(1);
-              }}
-              placeholder="Rechercher par police, n° civil, marque..."
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="input-field pl-10 w-full"
             />
+          </div>
+
+          {/* Fuel Filter */}
+          <div className="flex items-center gap-2">
+            <Filter className="h-5 w-5 text-gray-400" />
+            <select
+              value={filterFuel}
+              onChange={(e) => handleFuelFilterChange(e.target.value)}
+              className="input-field flex-1"
+            >
+              <option value="all">Tous les carburants</option>
+              <option value="gazoil">Gazoil</option>
+              <option value="essence">Essence</option>
+            </select>
           </div>
         </div>
       </div>
@@ -300,6 +283,7 @@ export default function Vehicules() {
             <div className="spinner mx-auto mb-4"></div>
             <p className="text-gray-600">Chargement...</p>
           </div>
+<<<<<<< HEAD
         ) : filteredVehicles.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -366,37 +350,124 @@ export default function Vehicules() {
                         </button>
                       </div>
                     </td>
+=======
+        ) : paginatedVehicles.length > 0 ? (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Police</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Civil</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marque</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Carburant</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kilométrage</th>
+                    {isAdmin && <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>}
+>>>>>>> 1ac032546f8f1bd79da350225703e5e1da78359f
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {paginatedVehicles.map((vehicle) => (
+                    <tr key={vehicle.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <p className="font-medium text-gray-900">{vehicle.police}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm text-gray-900">{vehicle.ncivil}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm text-gray-900">{vehicle.marque}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          vehicle.carburant === 'gazoil'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          {vehicle.carburant}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm text-gray-900">{vehicle.km.toLocaleString()} km</p>
+                      </td>
+                      {isAdmin && (
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleEdit(vehicle)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                              title="Modifier"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(vehicle.id)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                              title="Désactiver"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* CLIENT-SIDE PAGINATION */}
+            {totalPages > 1 && (
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-600">
+                    Affichage de {startIndex + 1} à {Math.min(endIndex, filteredVehicles.length)} sur {filteredVehicles.length} véhicule(s)
+                  </p>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`px-3 py-1 rounded-lg ${
+                            currentPage === page
+                              ? 'bg-primary-600 text-white'
+                              : 'hover:bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <div className="p-12 text-center">
-            <Car className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Aucun véhicule trouvé
-            </h3>
-            <p className="text-gray-600">
-              {filterFuel !== 'all' 
-                ? `Aucun véhicule ${filterFuel} disponible`
-                : 'Commencez par ajouter un véhicule'
-              }
-            </p>
+            <Car className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600">Aucun véhicule trouvé</p>
           </div>
         )}
       </div>
-
-      {/* Pagination */}
-      {filteredVehicles.length > 0 && totalPages > 1 && (
-        <Pagination
-          currentPage={page}
-          totalPages={totalPages}
-          onPageChange={setPage}
-          totalItems={totalItems}
-          perPage={perPage}
-        />
-      )}
     </div>
   );
 }
