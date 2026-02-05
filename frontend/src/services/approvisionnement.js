@@ -8,6 +8,13 @@ export const approvisionnementService = {
     const response = await api.post('/approvisionnement/search', { police });
     return response.data;
   },
+  /**
+* Get last recorded KM for a vehicle by police number
+   */
+  async getLastKm(police) {
+    const response = await api.get(`/approvisionnement/last-km/${police}`);
+    return response.data;
+  },
 
   /**
    * Create DOTATION approvisionnement

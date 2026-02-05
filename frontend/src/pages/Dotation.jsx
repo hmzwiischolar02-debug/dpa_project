@@ -1,21 +1,20 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileText, CheckCircle, XCircle, Plus, Edit2, Trash2, Lock, Unlock, Search } from 'lucide-react';
+import { FileText, CheckCircle, XCircle, Plus, Edit2, Trash2, Lock, Unlock, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { dotationService } from '../services/dotation';
-import { vehiculesService, benificiairesService } from '../services/vehicules';
 import { getUser } from '../services/auth';
 import ReadOnlyBanner from '../components/ReadOnlyBanner';
-import Pagination from '../components/Pagination';
-import SearchInput from '../components/SearchInput';
 import toast from 'react-hot-toast';
 
 export default function Dotation() {
   const [activeTab, setActiveTab] = useState('active');
   const [showForm, setShowForm] = useState(false);
   const [editingDotation, setEditingDotation] = useState(null);
-  const [page, setPage] = useState(1);
+  
+  // CLIENT-SIDE PAGINATION (like Approvisionnement)
+  const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
-  const perPage = 20;
+  const itemsPerPage = 10;
   
   const [formData, setFormData] = useState({
     vehicule_id: '',
@@ -29,41 +28,32 @@ export default function Dotation() {
   const isAdmin = user?.role === 'ADMIN';
   const queryClient = useQueryClient();
 
-  // Fetch active dotations with pagination and search
-  const { data: activeDotationsData, isLoading: loadingActive } = useQuery({
-    queryKey: ['dotations', 'active', page, searchTerm],
-    queryFn: () => dotationService.getActive({ page, per_page: perPage, search: searchTerm }),
+  // Fetch active dotations - NO PAGINATION PARAMS (fetch all)
+  const { data: activeDotations, isLoading: loadingActive } = useQuery({
+    queryKey: ['dotations', 'active'],
+    queryFn: () => dotationService.getActive({ page: 1, per_page: 1000 }),
     enabled: activeTab === 'active'
   });
 
-  // Fetch archived dotations with pagination and search
-  const { data: archivedDotationsData, isLoading: loadingArchived } = useQuery({
-    queryKey: ['dotations', 'archived', page, searchTerm],
-    queryFn: () => dotationService.getArchived({ page, per_page: perPage, search: searchTerm }),
+  // Fetch archived dotations - NO PAGINATION PARAMS (fetch all)
+  const { data: archivedDotations, isLoading: loadingArchived } = useQuery({
+    queryKey: ['dotations', 'archived'],
+    queryFn: () => dotationService.getArchived({ page: 1, per_page: 1000 }),
     enabled: activeTab === 'archived'
   });
 
-  // Extract actual data arrays
-  const activeDotations = Array.isArray(activeDotationsData) ? activeDotationsData : (activeDotationsData?.items || []);
-  const archivedDotations = Array.isArray(archivedDotationsData) ? archivedDotationsData : (archivedDotationsData?.items || []);
-  
-  // Pagination data
-  const paginationData = activeTab === 'active' ? activeDotationsData : archivedDotationsData;
-  const totalPages = paginationData?.pages || 1;
-  const totalItems = paginationData?.total || 0;
-
-  // Fetch vehicles for form
-  const { data: vehicles } = useQuery({
-    queryKey: ['vehicles'],
-    queryFn: () => vehiculesService.getAll(true),
-    enabled: isAdmin
+  // Fetch ONLY AVAILABLE vehicles (without active dotation) for form
+  const { data: availableVehicles } = useQuery({
+    queryKey: ['available-vehicles', formData.mois, formData.annee],
+    queryFn: () => dotationService.getAvailableVehicles(formData.mois, formData.annee),
+    enabled: isAdmin && showForm
   });
 
-  // Fetch beneficiaires for form
-  const { data: beneficiaires } = useQuery({
-    queryKey: ['beneficiaires'],
-    queryFn: () => benificiairesService.getAll(),
-    enabled: isAdmin
+  // Fetch ONLY AVAILABLE beneficiaires (without active dotation) for form
+  const { data: availableBenificiaires } = useQuery({
+    queryKey: ['available-beneficiaires', formData.mois, formData.annee],
+    queryFn: () => dotationService.getAvailableBenificiaires(formData.mois, formData.annee),
+    enabled: isAdmin && showForm
   });
 
   // Create/Update dotation mutation
@@ -72,6 +62,8 @@ export default function Dotation() {
     onSuccess: () => {
       toast.success('Dotation enregistrée!');
       queryClient.invalidateQueries(['dotations']);
+      queryClient.invalidateQueries(['available-vehicles']);
+      queryClient.invalidateQueries(['available-beneficiaires']);
       queryClient.invalidateQueries(['dashboard-stats']);
       resetForm();
     },
@@ -86,6 +78,8 @@ export default function Dotation() {
     onSuccess: () => {
       toast.success('Dotation supprimée!');
       queryClient.invalidateQueries(['dotations']);
+      queryClient.invalidateQueries(['available-vehicles']);
+      queryClient.invalidateQueries(['available-beneficiaires']);
     },
     onError: (error) => {
       toast.error(error.response?.data?.detail || 'Erreur lors de la suppression');
@@ -98,7 +92,6 @@ export default function Dotation() {
     onSuccess: () => {
       toast.success('Dotation clôturée!');
       queryClient.invalidateQueries(['dotations']);
-      queryClient.invalidateQueries(['dashboard-stats']);
     },
     onError: (error) => {
       toast.error(error.response?.data?.detail || 'Erreur lors de la clôture');
@@ -106,6 +99,8 @@ export default function Dotation() {
   });
 
   const resetForm = () => {
+    setShowForm(false);
+    setEditingDotation(null);
     setFormData({
       vehicule_id: '',
       benificiaire_id: '',
@@ -113,19 +108,12 @@ export default function Dotation() {
       annee: new Date().getFullYear(),
       qte: ''
     });
-    setEditingDotation(null);
-    setShowForm(false);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
-    if (!formData.vehicule_id || !formData.benificiaire_id || !formData.qte) {
-      toast.error('Veuillez remplir tous les champs obligatoires');
-      return;
-    }
-
     saveMutation.mutate({
+      ...formData,
       vehicule_id: parseInt(formData.vehicule_id),
       benificiaire_id: parseInt(formData.benificiaire_id),
       mois: parseInt(formData.mois),
@@ -135,46 +123,69 @@ export default function Dotation() {
   };
 
   const handleDelete = (id) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette dotation ?')) {
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette dotation?')) {
       deleteMutation.mutate(id);
     }
   };
 
   const handleClose = (id) => {
-    if (window.confirm('Êtes-vous sûr de vouloir clôturer cette dotation ? Cette action est irréversible.')) {
+    if (window.confirm('Êtes-vous sûr de vouloir clôturer cette dotation? Cette action est irréversible.')) {
       closeMutation.mutate(id);
     }
   };
 
-  const currentData = activeTab === 'active' ? activeDotations : archivedDotations;
+  // Get current data based on active tab
+  const currentData = activeTab === 'active' ? activeDotations?.items || [] : archivedDotations?.items || [];
   const isLoading = activeTab === 'active' ? loadingActive : loadingArchived;
 
-  const getStatusColor = (reste) => {
-    if (reste < 20) return 'text-red-600';
-    if (reste < 50) return 'text-orange-600';
-    return 'text-green-600';
+  // CLIENT-SIDE FILTERING & PAGINATION (like Approvisionnement)
+  const filteredData = currentData.filter(item => {
+    if (searchTerm === '') return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      item.police?.toLowerCase().includes(search) ||
+      item.benificiaire_nom?.toLowerCase().includes(search) ||
+      item.service_nom?.toLowerCase().includes(search) ||
+      item.marque?.toLowerCase().includes(search)
+    );
+  });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedData = filteredData.slice(startIndex, endIndex);
+
+  // Reset to page 1 when search changes
+  const handleSearchChange = (value) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
+
+  // Calculate progress bar width
+  const getProgressWidth = (reste, quota) => {
+    return ((quota - reste) / quota * 100).toFixed(0);
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {!isAdmin && <ReadOnlyBanner />}
+
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-            <FileText className="h-8 w-8 text-indigo-600" />
-            Gestion des Dotations
-          </h1>
-          <p className="text-gray-600">
-            {isAdmin 
-              ? 'Gérer les quotas mensuels de carburant'
-              : 'Consulter les dotations mensuelles'
-            }
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center">
+            <FileText className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Dotations Mensuelles</h1>
+            <p className="text-gray-600">Gestion des quotas de carburant</p>
+          </div>
         </div>
-        
-        {isAdmin && (
+
+        {isAdmin && !showForm && (
           <button
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => setShowForm(true)}
             className="btn-primary flex items-center gap-2"
           >
             <Plus className="h-5 w-5" />
@@ -183,58 +194,15 @@ export default function Dotation() {
         )}
       </div>
 
-      {/* Read-Only Banner for AGENT */}
-      {!isAdmin && <ReadOnlyBanner />}
-
-      {/* Create/Edit Form */}
+      {/* Form */}
       {isAdmin && showForm && (
-        <div className="card p-6 animate-slide-in">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Nouvelle dotation mensuelle
-          </h3>
+        <div className="card p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            {editingDotation ? 'Modifier' : 'Créer'} une dotation
+          </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Vehicle Selection */}
-              <div>
-                <label className="label">
-                  Véhicule <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.vehicule_id}
-                  onChange={(e) => setFormData({...formData, vehicule_id: e.target.value})}
-                  className="input-field"
-                  required
-                >
-                  <option value="">Sélectionner un véhicule</option>
-                  {vehicles?.map(v => (
-                    <option key={v.id} value={v.id}>
-                      {v.police} - {v.marque || 'N/A'} ({v.carburant})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Beneficiaire Selection */}
-              <div>
-                <label className="label">
-                  Bénéficiaire <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.benificiaire_id}
-                  onChange={(e) => setFormData({...formData, benificiaire_id: e.target.value})}
-                  className="input-field"
-                  required
-                >
-                  <option value="">Sélectionner un bénéficiaire</option>
-                  {beneficiaires?.map(b => (
-                    <option key={b.id} value={b.id}>
-                      {b.nom} - {b.fonction}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               {/* Month */}
               <div>
                 <label className="label">
@@ -242,13 +210,13 @@ export default function Dotation() {
                 </label>
                 <select
                   value={formData.mois}
-                  onChange={(e) => setFormData({...formData, mois: e.target.value})}
+                  onChange={(e) => setFormData({...formData, mois: e.target.value, vehicule_id: '', benificiaire_id: ''})}
                   className="input-field"
                   required
                 >
-                  {[...Array(12)].map((_, i) => (
-                    <option key={i + 1} value={i + 1}>
-                      {new Date(2000, i).toLocaleString('fr-FR', { month: 'long' })}
+                  {Array.from({length: 12}, (_, i) => i + 1).map(m => (
+                    <option key={m} value={m}>
+                      {new Date(2000, m - 1).toLocaleString('fr-FR', { month: 'long' })}
                     </option>
                   ))}
                 </select>
@@ -261,7 +229,7 @@ export default function Dotation() {
                 </label>
                 <select
                   value={formData.annee}
-                  onChange={(e) => setFormData({...formData, annee: e.target.value})}
+                  onChange={(e) => setFormData({...formData, annee: e.target.value, vehicule_id: '', benificiaire_id: ''})}
                   className="input-field"
                   required
                 >
@@ -270,6 +238,66 @@ export default function Dotation() {
                     return <option key={year} value={year}>{year}</option>
                   })}
                 </select>
+              </div>
+
+              {/* Vehicle - ONLY AVAILABLE */}
+              <div>
+                <label className="label">
+                  Véhicule <span className="text-red-500">*</span>
+                  {availableVehicles && (
+                    <span className="text-xs text-gray-500 ml-2">
+                      ({availableVehicles.length} disponible(s))
+                    </span>
+                  )}
+                </label>
+                <select
+                  value={formData.vehicule_id}
+                  onChange={(e) => setFormData({...formData, vehicule_id: e.target.value})}
+                  className="input-field"
+                  required
+                >
+                  <option value="">Sélectionner un véhicule disponible</option>
+                  {availableVehicles?.map(v => (
+                    <option key={v.id} value={v.id}>
+                      {v.police} - {v.marque} ({v.carburant})
+                    </option>
+                  ))}
+                </select>
+                {availableVehicles && availableVehicles.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    ⚠️ Tous les véhicules ont déjà une dotation active pour cette période
+                  </p>
+                )}
+              </div>
+
+              {/* Beneficiaire - ONLY AVAILABLE */}
+              <div>
+                <label className="label">
+                  Bénéficiaire <span className="text-red-500">*</span>
+                  {availableBenificiaires && (
+                    <span className="text-xs text-gray-500 ml-2">
+                      ({availableBenificiaires.length} disponible(s))
+                    </span>
+                  )}
+                </label>
+                <select
+                  value={formData.benificiaire_id}
+                  onChange={(e) => setFormData({...formData, benificiaire_id: e.target.value})}
+                  className="input-field"
+                  required
+                >
+                  <option value="">Sélectionner un bénéficiaire disponible</option>
+                  {availableBenificiaires?.map(b => (
+                    <option key={b.id} value={b.id}>
+                      {b.nom} - {b.fonction} ({b.service_nom})
+                    </option>
+                  ))}
+                </select>
+                {availableBenificiaires && availableBenificiaires.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    ⚠️ Tous les bénéficiaires ont déjà une dotation active pour cette période
+                  </p>
+                )}
               </div>
 
               {/* Quantity */}
@@ -299,7 +327,7 @@ export default function Dotation() {
               </button>
               <button
                 type="submit"
-                disabled={saveMutation.isPending}
+                disabled={saveMutation.isPending || !availableVehicles?.length || !availableBenificiaires?.length}
                 className="btn-primary flex-1"
               >
                 {saveMutation.isPending ? 'Enregistrement...' : 'Créer la dotation'}
@@ -309,10 +337,27 @@ export default function Dotation() {
         </div>
       )}
 
+      {/* Search Bar */}
+      <div className="card p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Rechercher par police, bénéficiaire, service ou marque..."
+            value={searchTerm}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="input-field pl-10 w-full"
+          />
+        </div>
+      </div>
+
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
         <button
-          onClick={() => setActiveTab('active')}
+          onClick={() => {
+            setActiveTab('active');
+            setCurrentPage(1);
+          }}
           className={`px-6 py-3 font-medium transition-colors border-b-2 ${
             activeTab === 'active'
               ? 'border-primary-600 text-primary-600'
@@ -324,14 +369,17 @@ export default function Dotation() {
             Dotations Actives
             {activeDotations && (
               <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">
-                {activeDotations.length}
+                {activeDotations.items?.length || 0}
               </span>
             )}
           </div>
         </button>
 
         <button
-          onClick={() => setActiveTab('archived')}
+          onClick={() => {
+            setActiveTab('archived');
+            setCurrentPage(1);
+          }}
           className={`px-6 py-3 font-medium transition-colors border-b-2 ${
             activeTab === 'archived'
               ? 'border-primary-600 text-primary-600'
@@ -340,199 +388,177 @@ export default function Dotation() {
         >
           <div className="flex items-center gap-2">
             <XCircle className="h-5 w-5" />
-            Archives
+            Dotations Archivées
             {archivedDotations && (
               <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full text-xs">
-                {archivedDotations.length}
+                {archivedDotations.items?.length || 0}
               </span>
             )}
           </div>
         </button>
       </div>
 
-      {/* Search Bar */}
-      <div className="card p-4">
-        <div className="flex items-center gap-4">
-          <SearchInput
-            value={searchTerm}
-            onChange={(value) => {
-              setSearchTerm(value);
-              setPage(1); // Reset to page 1 when searching
-            }}
-            placeholder="Rechercher par véhicule, bénéficiaire, service..."
-          />
-        </div>
-      </div>
-
-       {/* Stats Summary */}
-      {currentData && currentData.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="card p-4 bg-gradient-to-br from-blue-50 to-blue-100">
-            <p className="text-sm text-blue-600 mb-1">Total Dotations</p>
-            <p className="text-2xl font-bold text-blue-900">{currentData.length}</p>
-          </div>
-          <div className="card p-4 bg-gradient-to-br from-green-50 to-green-100">
-            <p className="text-sm text-green-600 mb-1">Quota Total</p>
-            <p className="text-2xl font-bold text-green-900">
-              {currentData.reduce((sum, d) => sum + d.qte, 0)} L
-            </p>
-          </div>
-          <div className="card p-4 bg-gradient-to-br from-orange-50 to-orange-100">
-            <p className="text-sm text-orange-600 mb-1">Consommé</p>
-            <p className="text-2xl font-bold text-orange-900">
-              {currentData.reduce((sum, d) => sum + d.qte_consomme, 0).toFixed(0)} L
-            </p>
-          </div>
-          <div className="card p-4 bg-gradient-to-br from-purple-50 to-purple-100">
-            <p className="text-sm text-purple-600 mb-1">Reste</p>
-            <p className="text-2xl font-bold text-purple-900">
-              {currentData.reduce((sum, d) => sum + d.reste, 0).toFixed(0)} L
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Table */}
+      {/* Content */}
       <div className="card overflow-hidden">
         {isLoading ? (
           <div className="p-12 text-center">
             <div className="spinner mx-auto mb-4"></div>
             <p className="text-gray-600">Chargement...</p>
           </div>
-        ) : currentData && currentData.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left table-header">Véhicule</th>
-                  <th className="px-6 py-3 text-left table-header">Bénéficiaire</th>
-                  <th className="px-6 py-3 text-left table-header">Service</th>
-                  <th className="px-6 py-3 text-left table-header">Période</th>
-                  <th className="px-6 py-3 text-left table-header">Quota</th>
-                  <th className="px-6 py-3 text-left table-header">Consommé</th>
-                  <th className="px-6 py-3 text-left table-header">Reste</th>
-                  <th className="px-6 py-3 text-left table-header">Statut</th>
-                  {isAdmin && <th className="px-6 py-3 text-left table-header">Actions</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {currentData.map((dotation) => (
-                  <tr key={dotation.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-semibold text-gray-900">{dotation.police}</p>
-                        <p className="text-sm text-gray-600">{dotation.marque || 'N/A'}</p>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          dotation.carburant === 'gazoil' 
-                            ? 'bg-orange-100 text-orange-700'
-                            : 'bg-green-100 text-green-700'
-                        }`}>
-                          {dotation.carburant}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium text-gray-900">{dotation.benificiaire_nom}</p>
-                        <p className="text-sm text-gray-600">{dotation.benificiaire_fonction}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium text-gray-900">{dotation.service_nom}</p>
-                        <p className="text-sm text-gray-600">{dotation.direction}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                        {dotation.mois.toString().padStart(2, '0')}/{dotation.annee}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="font-semibold text-gray-900">{dotation.qte} L</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium text-gray-900">{dotation.qte_consomme.toFixed(2)} L</p>
-                        <p className="text-xs text-gray-600">
-                          {((dotation.qte_consomme / dotation.qte) * 100).toFixed(1)}%
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className={`font-bold text-lg ${getStatusColor(dotation.reste)}`}>
-                        {dotation.reste.toFixed(2)} L
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                        dotation.cloture
-                          ? 'bg-gray-100 text-gray-700'
-                          : 'bg-green-100 text-green-700'
-                      }`}>
-                        {dotation.cloture ? 'Clôturé' : 'Actif'}
-                      </span>
-                    </td>
-                    
-                    {isAdmin && (
+        ) : paginatedData.length > 0 ? (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Véhicule</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bénéficiaire</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Période</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quota</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Consommé</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reste</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Progression</th>
+                    {isAdmin && <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {paginatedData.map((item) => (
+                    <tr key={item.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          {!dotation.cloture && (
-                            <>
+                        <div>
+                          <p className="font-medium text-gray-900">{item.police}</p>
+                          <p className="text-sm text-gray-500">{item.marque}</p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="font-medium text-gray-900">{item.benificiaire_nom}</p>
+                          <p className="text-sm text-gray-500">{item.benificiaire_fonction}</p>
+                          <p className="text-xs text-gray-400">{item.service_nom}</p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm text-gray-900">
+                          {new Date(2000, item.mois - 1).toLocaleString('fr-FR', { month: 'long' })} {item.annee}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm font-medium text-gray-900">{item.qte} L</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm text-gray-900">{item.qte_consomme.toFixed(2)} L</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          item.reste > 20 
+                            ? 'bg-green-100 text-green-800'
+                            : item.reste > 0 
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {item.reste.toFixed(2)} L
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="w-32">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-gray-200 rounded-full h-2">
+                              <div
+                                className={`h-2 rounded-full ${
+                                  parseFloat(getProgressWidth(item.reste, item.qte)) > 80
+                                    ? 'bg-red-500'
+                                    : parseFloat(getProgressWidth(item.reste, item.qte)) > 50
+                                    ? 'bg-yellow-500'
+                                    : 'bg-green-500'
+                                }`}
+                                style={{ width: `${getProgressWidth(item.reste, item.qte)}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-gray-600 w-10 text-right">
+                              {getProgressWidth(item.reste, item.qte)}%
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      {isAdmin && (
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {!item.cloture && (
                               <button
-                                onClick={() => handleDelete(dotation.id)}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Supprimer"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handleClose(dotation.id)}
-                                className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                                onClick={() => handleClose(item.id)}
+                                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
                                 title="Clôturer"
                               >
                                 <Lock className="h-4 w-4" />
                               </button>
-                            </>
-                          )}
-                          {dotation.cloture && (
-                            <span className="text-xs text-gray-500">Clôturé</span>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                            )}
+                            <button
+                              onClick={() => handleDelete(item.id)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                              title="Supprimer"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* CLIENT-SIDE PAGINATION (like Approvisionnement) */}
+            {totalPages > 1 && (
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-600">
+                    Affichage de {startIndex + 1} à {Math.min(endIndex, filteredData.length)} sur {filteredData.length} résultat(s)
+                  </p>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`px-3 py-1 rounded-lg ${
+                            currentPage === page
+                              ? 'bg-primary-600 text-white'
+                              : 'hover:bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <div className="p-12 text-center">
-            <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Aucune dotation trouvée
-            </h3>
-            <p className="text-gray-600">
-              {activeTab === 'active'
-                ? 'Aucune dotation active pour le moment'
-                : 'Aucune dotation archivée'
-              }
-            </p>
+            <p className="text-gray-600">Aucune dotation trouvée</p>
           </div>
         )}
       </div>
-
-      {/* Pagination */}
-      { currentData.length > 0 && totalPages > 1 && (
-        <Pagination
-          currentPage={page}
-          totalPages={totalPages}
-          onPageChange={setPage}
-          totalItems={totalItems}
-          perPage={perPage}
-        />
-      )}
-
     </div>
   );
 }
