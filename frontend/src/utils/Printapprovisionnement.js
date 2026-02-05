@@ -42,7 +42,7 @@ export const printApprovisionnementPDF = (data) => {
   
   // Row 1: Responsable | Fonction
   doc.setFont('helvetica', 'bold');
-  doc.text('Responsable :', leftCol, yPos);
+  doc.text('Benificiaire :', leftCol, yPos);
   doc.setFont('helvetica', 'normal');
   doc.text(data.benificiaire_nom || 'N/A', leftCol + 35, yPos);
 

@@ -289,7 +289,7 @@ export default function Approvisionnement() {
                     <p className="text-sm text-blue-700">{vehicleData.fonction}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-blue-600 font-medium">Quota</p>
+                    <p className="text-sm text-blue-600 font-medium">Qte Mensuel</p>
                     <p className="text-lg font-bold text-blue-900">{vehicleData.quota} L</p>
                     <p className="text-sm text-blue-700">Consommé: {vehicleData.qte_consomme.toFixed(2)} L</p>
                   </div>
@@ -346,11 +346,11 @@ export default function Approvisionnement() {
                   {/* KM */}
                   <div>
                     <label className="label">
-                      Kilométrage actuel <span className="text-red-500">*</span>
+                      Kilométrage <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="number"
-                      value={formData.km}
+                      value={formData.km-1}
                       onChange={(e) => setFormData({...formData, km: e.target.value})}
                       className="input-field"
                       placeholder={`Supérieur à ${vehicleData.km}`}

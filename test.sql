@@ -658,3 +658,100 @@ SELECT * FROM get_current_dotation(1);
 -- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================
+
+INSERT INTO service (nom, direction) VALUES
+('SCL', 'DSIC'),
+('SAH', 'DRH'),
+('SIT', 'DRH'),
+('FIN', 'DRH'),
+('LOG', 'DRH'),
+('PAT', 'DRH'),
+('JUR', 'DSIC'),
+('INF', 'DSIC'),
+('COM', 'DSIC'),
+('ACH', 'DPJ'),
+('RH1', 'DPJ'),
+('RH2', 'DPJ'),
+('CTRL', 'DPJ'),
+('PLAN', 'DRG'),
+('ETU', 'DRG'),
+('TECH', 'DRG'),
+('AUTO', 'DRG'),
+('PARC', 'DEB'),
+('MED', 'DEB'),
+('SOC', 'DEB'),
+('ENV', 'DEB'),
+('QUAL', 'DSP'),
+('AUD', 'DSP'),
+('ARCH', 'DSP');
+
+
+INSERT INTO benificiaire (matricule, nom, fonction, service_id) VALUES
+('B100', 'EL AMRANI Youssef', 'Chef Service', 1),
+('B101', 'BENALI Samira', 'Chef Division', 2),
+('B102', 'TAHIRI Mohamed', 'Chef Section', 3),
+('B103', 'EL IDRISSI Ahmed', 'Responsable', 4),
+('B104', 'LAHCENI Fatima', 'Chef Service', 5),
+('B105', 'OUAZZANI Karim', 'Chef Section', 6),
+('B106', 'SAIDI Hassan', 'Responsable', 7),
+('B107', 'BOUAZZA Imane', 'Chef Division', 8),
+('B108', 'FARAH Nabil', 'Chef Service', 9),
+('B109', 'KADIRI Salma', 'Chef Section', 10),
+('B110', 'MAZOUZI Anas', 'Responsable', 11),
+('B111', 'RAHMANI Khadija', 'Chef Division', 12),
+('B112', 'CHERKAOUI Rachid', 'Chef Service', 13),
+('B113', 'AMMOR Latifa', 'Chef Section', 14),
+('B114', 'HADDAD Omar', 'Responsable', 15),
+('B115', 'BERRADA Sanae', 'Chef Service', 16),
+('B116', 'EL KHALFI Jamal', 'Chef Division', 17),
+('B117', 'ZIANI Soukaina', 'Chef Section', 18),
+('B118', 'NAJI Yassine', 'Responsable', 19),
+('B119', 'AIT ALI Brahim', 'Chef Service', 20),
+('B120', 'EL FASSI Hajar', 'Chef Division', 21),
+('B121', 'MOKHTARI Adil', 'Chef Section', 22),
+('B122', 'SBAI Rania', 'Responsable', 23),
+('B123', 'LAMRANI Othmane', 'Chef Service', 24),
+('B124', 'EL MAHJOUBI Ikram', 'Chef Division', 25);
+
+
+INSERT INTO vehicule (police, nCivil, marque, carburant, km) VALUES
+('P1001', '1001-E-2', 'Toyota Corolla', 'essence', 45000),
+('P1002', '1002-E-1', 'Renault Duster', 'gazoil', 78000),
+('P1003', '1003-E-2', 'Dacia Logan', 'essence', 52000),
+('P1004', '1004-E-2', 'Hyundai Accent', 'essence', 61000),
+('P1005', '1005-E-2', 'Peugeot 301', 'gazoil', 88000),
+('P1006', '1006-E-1', 'Ford Ranger', 'gazoil', 99000),
+('P1007', '1007-E-2', 'Skoda Octavia', 'essence', 43000),
+('P1008', '1008-E-3', 'Nissan Qashqai', 'gazoil', 39000),
+('P1009', '1009-E-1', 'Kia Rio', 'essence', 56000),
+('P1010', '1010-E-2', 'VW Passat', 'gazoil', 102000),
+('P1011', '1011-E-2', 'Toyota Hilux', 'gazoil', 87000),
+('P1012', '1012-E-3', 'Suzuki Celerio', 'essence', 25000),
+('P1013', '1013-E-1', 'Seat Ibiza', 'essence', 48000),
+('P1014', '1014-E-2', 'Isuzu D-Max', 'gazoil', 115000),
+('P1015', '1015-E-2', 'Fiat Tipo', 'essence', 53000),
+('P1016', '1016-E-3', 'Hyundai Tucson', 'gazoil', 42000),
+('P1017', '1017-E-1', 'Peugeot 208', 'essence', 60000),
+('P1018', '1018-E-2', 'Renault Clio', 'essence', 47000),
+('P1019', '1019-E-20', 'Toyota Prado', 'gazoil', 130000),
+('P1020', '1020-E-23', 'MG ZS', 'essence', 18000),
+('P1021', '1021-E-21', 'Citroen C-Elysee', 'gazoil', 76000),
+('P1022', '1022-E-22', 'Opel Astra', 'essence', 54000),
+('P1023', '1023-E-3', 'Chery Tiggo', 'essence', 22000),
+('P1024', '1024-E-1', 'Mitsubishi L200', 'gazoil', 98000),
+('P1025', '1025-E-2', 'Toyota Yaris', 'essence', 36000);
+
+
+INSERT INTO dotation (vehicule_id, benificiaire_id, mois, annee, qte) VALUES
+
+(6, 6, EXTRACT(MONTH FROM CURRENT_DATE), EXTRACT(YEAR FROM CURRENT_DATE), 140),
+
+(10, 10, EXTRACT(MONTH FROM CURRENT_DATE), EXTRACT(YEAR FROM CURRENT_DATE), 140),
+(11, 11, EXTRACT(MONTH FROM CURRENT_DATE), EXTRACT(YEAR FROM CURRENT_DATE), 140),
+(12, 12, EXTRACT(MONTH FROM CURRENT_DATE), EXTRACT(YEAR FROM CURRENT_DATE), 120),
+(13, 13, EXTRACT(MONTH FROM CURRENT_DATE), EXTRACT(YEAR FROM CURRENT_DATE), 120),
+
+(16, 16, EXTRACT(MONTH FROM CURRENT_DATE), EXTRACT(YEAR FROM CURRENT_DATE), 140),
+(17, 17, EXTRACT(MONTH FROM CURRENT_DATE), EXTRACT(YEAR FROM CURRENT_DATE), 120),
+(18, 18, EXTRACT(MONTH FROM CURRENT_DATE), EXTRACT(YEAR FROM CURRENT_DATE), 120),
+(19, 19, EXTRACT(MONTH FROM CURRENT_DATE), EXTRACT(YEAR FROM CURRENT_DATE), 140);

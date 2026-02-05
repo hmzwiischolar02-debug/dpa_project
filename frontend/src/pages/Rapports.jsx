@@ -223,7 +223,7 @@ export default function Rapports() {
             </div>
             <div className="text-center p-4 bg-gray-50 rounded-lg">
               <p className="text-sm text-gray-600 mb-1">Qte dotation Utilisé</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.quota_percent?.toFixed(1)}%</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.quota_total?.toFixed(0)}</p>
             </div>
           </div>
 
@@ -232,11 +232,11 @@ export default function Rapports() {
               <p className="text-sm font-medium text-blue-900 mb-2">DOTATION</p>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-blue-700">Consommation:</span>
-                <span className="text-lg font-bold text-blue-900">{stats.dotation_qte?.toFixed(0)} L</span>
+                <span className="text-lg font-bold text-blue-900">{stats.consommation_dotation?.toFixed(0)} L</span>
               </div>
               <div className="flex items-center justify-between mt-1">
                 <span className="text-sm text-blue-700">Part:</span>
-                <span className="text-lg font-bold text-blue-900">{stats.dotation_percent?.toFixed(1)}%</span>
+                <span className="text-lg font-bold text-blue-900">{(stats.consommation_dotation*100/stats.consommation_totale)?.toFixed(2)}%</span>
               </div>
             </div>
 
@@ -244,11 +244,11 @@ export default function Rapports() {
               <p className="text-sm font-medium text-red-900 mb-2">MISSION</p>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-red-700">Consommation:</span>
-                <span className="text-lg font-bold text-red-900">{stats.mission_qte?.toFixed(0)} L</span>
+                <span className="text-lg font-bold text-red-900">{stats.consommation_mission?.toFixed(0)} L</span>
               </div>
               <div className="flex items-center justify-between mt-1">
                 <span className="text-sm text-red-700">Part:</span>
-                <span className="text-lg font-bold text-red-900">{stats.mission_percent?.toFixed(1)}%</span>
+                <span className="text-lg font-bold text-red-900">{(stats.consommation_mission*100/stats.consommation_totale)?.toFixed(2)}%</span>
               </div>
             </div>
           </div>
