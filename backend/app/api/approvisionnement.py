@@ -220,12 +220,28 @@ async def list_approvisionnements(
         cur.execute(count_query, params)
         total = cur.fetchone()['total']
         
-        # Get paginated results
+        # Get paginated results with JOINs
         offset = (page - 1) * per_page
         cur.execute(f"""
-            SELECT * FROM approvisionnement
+            SELECT 
+                a.id, a.type_approvi, a.date, a.qte, a.km_precedent, a.km,
+                a.vhc_provisoire, a.km_provisoire, a.observations,
+                a.dotation_id, a.police_vehicule, a.matricule_conducteur, a.service_externe,
+                -- DOTATION related data
+                COALESCE(v.police, a.police_vehicule) as police,
+                COALESCE(b.nom, a.matricule_conducteur) as benificiaire_nom,
+                COALESCE(s.nom, a.service_externe) as service_nom,
+                COALESCE(v.marque, '') as marque,
+                COALESCE(v.carburant, 'gazoil') as carburant,
+                COALESCE(b.fonction, '') as benificiaire_fonction,
+                COALESCE(s.direction, '') as direction
+            FROM approvisionnement a
+            LEFT JOIN dotation d ON a.dotation_id = d.id AND a.type_approvi = 'DOTATION'
+            LEFT JOIN vehicule v ON d.vehicule_id = v.id
+            LEFT JOIN benificiaire b ON d.benificiaire_id = b.id
+            LEFT JOIN service s ON b.service_id = s.id
             {where_clause}
-            ORDER BY date DESC, id DESC
+            ORDER BY a.date DESC, a.id DESC
             LIMIT %s OFFSET %s
         """, params + [per_page, offset])
         

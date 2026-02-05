@@ -4,6 +4,7 @@ import { Search, Fuel, CheckCircle, AlertCircle, Plus, ArrowLeft } from 'lucide-
 import { approvisionnementService } from '../services/approvisionnement';
 import ApprovisionnementList from '../components/Approvisionnementlist';
 import toast from 'react-hot-toast';
+import { printApprovisionnementPDF } from '../utils/Printapprovisionnement';
 
 export default function Approvisionnement() {
   const [showForm, setShowForm] = useState(false);
@@ -39,9 +40,36 @@ export default function Approvisionnement() {
   // Create approvisionnement mutation
   const createMutation = useMutation({
     mutationFn: (data) => approvisionnementService.createDotation(data),
-    onSuccess: () => {
+    onSuccess: (response, variables) => {
       toast.success('Approvisionnement ajouté avec succès!');
       queryClient.invalidateQueries(['dashboard-stats']);
+      queryClient.invalidateQueries(['approvisionnements']);
+      
+      // Auto-print PDF WITHOUT confirmation
+      setTimeout(() => {
+        // Calculate new consumed quantity and rest
+        const newConsumed = (vehicleData.qte_consomme || 0) + parseFloat(variables.qte);
+        const newRest = vehicleData.quota - newConsumed;
+        
+        printApprovisionnementPDF({
+          type_approvi: 'DOTATION',
+          date: new Date().toISOString(),
+          police: vehicleData.police,
+          marque: vehicleData.marque,
+          carburant: vehicleData.carburant,
+          benificiaire_nom: vehicleData.benificiaire,
+          fonction: vehicleData.fonction,
+          service_nom: vehicleData.service,
+          direction: vehicleData.direction,
+          qte: parseFloat(variables.qte),
+          km_precedent: vehicleData.km,
+          km: parseInt(variables.km),
+          quota: vehicleData.quota,
+          qte_consomme: newConsumed,
+          reste: newRest
+        });
+      }, 500); // Small delay to let toast appear first
+      
       // Reset form
       setVehicleData(null);
       setSearchPolice('');
@@ -250,7 +278,7 @@ export default function Approvisionnement() {
             </div>
 
             <div className="bg-white rounded-lg p-4">
-              <p className="text-xs text-gray-600 mb-1">Qte dotation / Consommé</p>
+              <p className="text-xs text-gray-600 mb-1">Quota / Consommé</p>
               <p className="font-semibold text-gray-900">
                 {vehicleData.quota} L / {vehicleData.qte_consomme.toFixed(2)} L
               </p>

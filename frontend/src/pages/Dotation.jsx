@@ -364,6 +364,34 @@ export default function Dotation() {
         </div>
       </div>
 
+       {/* Stats Summary */}
+      {currentData && currentData.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="card p-4 bg-gradient-to-br from-blue-50 to-blue-100">
+            <p className="text-sm text-blue-600 mb-1">Total Dotations</p>
+            <p className="text-2xl font-bold text-blue-900">{currentData.length}</p>
+          </div>
+          <div className="card p-4 bg-gradient-to-br from-green-50 to-green-100">
+            <p className="text-sm text-green-600 mb-1">Quota Total</p>
+            <p className="text-2xl font-bold text-green-900">
+              {currentData.reduce((sum, d) => sum + d.qte, 0)} L
+            </p>
+          </div>
+          <div className="card p-4 bg-gradient-to-br from-orange-50 to-orange-100">
+            <p className="text-sm text-orange-600 mb-1">Consommé</p>
+            <p className="text-2xl font-bold text-orange-900">
+              {currentData.reduce((sum, d) => sum + d.qte_consomme, 0).toFixed(0)} L
+            </p>
+          </div>
+          <div className="card p-4 bg-gradient-to-br from-purple-50 to-purple-100">
+            <p className="text-sm text-purple-600 mb-1">Reste</p>
+            <p className="text-2xl font-bold text-purple-900">
+              {currentData.reduce((sum, d) => sum + d.reste, 0).toFixed(0)} L
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="card overflow-hidden">
         {isLoading ? (
@@ -495,7 +523,7 @@ export default function Dotation() {
       </div>
 
       {/* Pagination */}
-      {currentData && currentData.length > 0 && totalPages > 1 && (
+      { currentData.length > 0 && totalPages > 1 && (
         <Pagination
           currentPage={page}
           totalPages={totalPages}
@@ -505,33 +533,6 @@ export default function Dotation() {
         />
       )}
 
-      {/* Stats Summary */}
-      {currentData && currentData.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="card p-4 bg-gradient-to-br from-blue-50 to-blue-100">
-            <p className="text-sm text-blue-600 mb-1">Total Dotations</p>
-            <p className="text-2xl font-bold text-blue-900">{currentData.length}</p>
-          </div>
-          <div className="card p-4 bg-gradient-to-br from-green-50 to-green-100">
-            <p className="text-sm text-green-600 mb-1">Quota Total</p>
-            <p className="text-2xl font-bold text-green-900">
-              {currentData.reduce((sum, d) => sum + d.qte, 0)} L
-            </p>
-          </div>
-          <div className="card p-4 bg-gradient-to-br from-orange-50 to-orange-100">
-            <p className="text-sm text-orange-600 mb-1">Consommé</p>
-            <p className="text-2xl font-bold text-orange-900">
-              {currentData.reduce((sum, d) => sum + d.qte_consomme, 0).toFixed(0)} L
-            </p>
-          </div>
-          <div className="card p-4 bg-gradient-to-br from-purple-50 to-purple-100">
-            <p className="text-sm text-purple-600 mb-1">Reste</p>
-            <p className="text-2xl font-bold text-purple-900">
-              {currentData.reduce((sum, d) => sum + d.reste, 0).toFixed(0)} L
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
