@@ -321,7 +321,7 @@ export default function Vehicules() {
                       <p className="font-semibold text-gray-900">{vehicle.police}</p>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="text-gray-900">{vehicle.nCivil}</p>
+                      <p className="text-gray-900">{vehicle.ncivil}</p>
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-gray-900">{vehicle.marque || 'N/A'}</p>
