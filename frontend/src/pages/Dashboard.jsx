@@ -104,7 +104,7 @@ export default function Dashboard() {
         <div className="stat-card bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-purple-600 mb-1">Quota Utilisé</p>
+              <p className="text-sm font-medium text-purple-600 mb-1">Qte Mensuel Utilisé</p>
               <p className="text-3xl font-bold text-purple-900">
                 {dotationPercent}%
               </p>
@@ -123,7 +123,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-semibold text-gray-900">Approvisionnement DOTATION</h3>
-              <p className="text-sm text-gray-600">Quotas mensuels</p>
+              <p className="text-sm text-gray-600">Qte mensuels</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <Fuel className="h-6 w-6 text-blue-600" />
@@ -235,7 +235,7 @@ export default function Dashboard() {
             </div>
             <div>
               <h3 className="font-semibold text-gray-900">Gérer les Dotations</h3>
-              <p className="text-sm text-gray-600">Quotas mensuels</p>
+              <p className="text-sm text-gray-600">Qte mensuels</p>
             </div>
           </div>
         </Link>

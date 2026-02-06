@@ -27,7 +27,7 @@ export default function Approvisionnement() {
       setVehicleData(data);
       setFormData(prev => ({
         ...prev,
-        km: data.km + 1 // Initialize with current km + 1
+        km: data.km  // Initialize with current km + 1
       }));
     },
     onError: (error) => {
@@ -64,7 +64,8 @@ export default function Approvisionnement() {
             benificiaire_nom: vehicleData.benificiaire,
             fonction: vehicleData.fonction,
             service_nom: vehicleData.service,
-            direction: vehicleData.direction
+            direction: vehicleData.direction,
+            type_approvi:"DOTATION"
           },
           vehicleData
         );
@@ -188,17 +189,29 @@ export default function Approvisionnement() {
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
+
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-            <Fuel className="h-8 w-8 text-blue-600" />
-            Approvisionnement DOTATION
-          </h1>
-          <p className="text-gray-600">
-            {showForm 
-              ? "Enregistrer un approvisionnement sur dotation mensuelle"
-              : "Liste des approvisionnements DOTATION"
-            }
-          </p>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+              <Fuel className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Approvisionnement DOTATION
+              </h1>
+              <p className="text-gray-600">
+                {showForm
+                  ? "Enregistrer un approvisionnement sur dotation mensuelle"
+                  : "Liste des approvisionnements DOTATION"
+                }
+              </p>
+            </div>
+          </div>
+          {showForm && (
+            <span className="badge-mission inline-flex mt-2">
+              Nouveau type dans v3.0
+            </span>
+          )}
         </div>
 
         {/* Toggle Button */}
@@ -350,7 +363,7 @@ export default function Approvisionnement() {
                     </label>
                     <input
                       type="number"
-                      value={formData.km-1}
+                      value={formData.km}
                       onChange={(e) => setFormData({...formData, km: e.target.value})}
                       className="input-field"
                       placeholder={`Supérieur à ${vehicleData.km}`}
@@ -371,7 +384,7 @@ export default function Approvisionnement() {
                       value={formData.vhc_provisoire}
                       onChange={(e) => setFormData({...formData, vhc_provisoire: e.target.value.toUpperCase()})}
                       className="input-field"
-                      placeholder="Ex: B-999-99"
+                      placeholder="Ex: P123456"
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       Si le véhicule principal n'est pas utilisé

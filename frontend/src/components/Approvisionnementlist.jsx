@@ -49,6 +49,7 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
       item.service_nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.police_vehicule?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.matricule_conducteur?.toLowerCase().includes(searchTerm.toLowerCase());
+      
     
     return matchesSearch;
   });

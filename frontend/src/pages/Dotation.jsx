@@ -179,7 +179,7 @@ export default function Dotation() {
           </div>
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Dotations Mensuelles</h1>
-            <p className="text-gray-600">Gestion des quotas de carburant</p>
+            <p className="text-gray-600">Gestion des dotations de carburant</p>
           </div>
         </div>
 
@@ -414,7 +414,7 @@ export default function Dotation() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Véhicule</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bénéficiaire</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Période</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quota</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qte Mensuel</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Consommé</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reste</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Progression</th>

@@ -49,7 +49,7 @@ export const printApprovisionnementPDF = (data) => {
   doc.setFont('helvetica', 'bold');
   doc.text('Fonction :', rightCol, yPos);
   doc.setFont('helvetica', 'normal');
-  doc.text(data.fonction || 'N/A', rightCol + 35, yPos);
+  doc.text(data.benificiaire_fonction || 'N/A', rightCol + 35, yPos);
 
   
   
@@ -94,8 +94,6 @@ export const printApprovisionnementPDF = (data) => {
   doc.text('Quantité :', rightCol, yPos);
   doc.setFont('helvetica', 'normal');
   doc.text(String(data.qte || '0'), rightCol + 35, yPos);
-
-  
   
   yPos += lineHeight;
   
@@ -115,18 +113,18 @@ export const printApprovisionnementPDF = (data) => {
   yPos += lineHeight;
   
   // Only show quota info for DOTATION type
-  if (data.type_approvi === 'DOTATION' && data.quota) {
+  if (data.type_approvi === 'DOTATION') {
     doc.setFont('helvetica', 'bold');
     doc.text('Qte Mensuel :', leftCol, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(String(data.quota || '0'), leftCol + 35, yPos);
+    doc.text(String(data.quota), leftCol + 35, yPos);
   }
   // Row 6: Empty left | Reste (DOTATION only)
-  if (data.type_approvi === 'DOTATION' && data.reste !== undefined) {
+  if (data.type_approvi === 'DOTATION' ) {
     doc.setFont('helvetica', 'bold');
     doc.text('Reste :', rightCol, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(String(data.reste || '0'), rightCol + 35, yPos);
+    doc.text(String(data.reste), rightCol + 35, yPos);
     yPos += lineHeight;
   }
   
@@ -185,21 +183,21 @@ export const printDotationApprovisionnement = (approData, dotationData) => {
   console.log('Using dotation:', dotation);
   
   printApprovisionnementPDF({
-    type_approvi: 'DOTATION',
+    type_approvi: approData.type_approvi,
     date: approData.date || new Date().toISOString(),
     police: dotation?.police || approData.police,
     marque: dotation?.marque || approData.marque,
     carburant: dotation?.carburant || approData.carburant,
     benificiaire_nom: dotation?.benificiaire || approData.benificiaire_nom,
-    fonction: dotation?.fonction || approData.fonction,
+    benificiaire_fonction: dotation?.fonction || approData.fonction,
     service_nom: dotation?.service || approData.service_nom || approData.service,
     direction: dotation?.direction || approData.direction,
     qte: approData.qte,
     km_precedent: approData.km_precedent,
     km: approData.km,
-    quota: dotation?.quota,
-    qte_consomme: dotation?.qte_consomme,
-    reste: dotation?.reste
+    quota: dotation?.quota  || approData.quota,
+    qte_consomme: dotation?.qte_consomme  || approData.qte_consomme,
+    reste: dotation?.reste || approData.reste
   });
 };
 
