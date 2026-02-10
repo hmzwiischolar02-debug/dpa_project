@@ -259,10 +259,12 @@ export default function Approvisionnement() {
             </h2>
             <form onSubmit={handleSearch} className="flex gap-3">
               <input
-                type="text"
+                type="number"
+                maxlength="6"
+                max="400000"
                 value={searchPolice}
                 onChange={(e) => setSearchPolice(e.target.value)}
-                placeholder="Numéro de police (ex: 12345)"
+                placeholder="Numéro de police (ex: 123456)"
                 className="input-field flex-1"
                 disabled={searchMutation.isPending}
               />
@@ -294,7 +296,7 @@ export default function Approvisionnement() {
                   <div>
                     <p className="text-sm text-blue-600 font-medium">Véhicule</p>
                     <p className="text-lg font-bold text-blue-900">{vehicleData.police}</p>
-                    <p className="text-sm text-blue-700">{vehicleData.marque}</p>
+                    <p className="text-sm font-bold uppercase text-blue-700">{vehicleData.marque}</p>
                   </div>
                   <div>
                     <p className="text-sm text-blue-600 font-medium">Bénéficiaire</p>
@@ -363,6 +365,8 @@ export default function Approvisionnement() {
                     </label>
                     <input
                       type="number"
+                      maxlength="6"
+                      max="999999"
                       value={formData.km}
                       onChange={(e) => setFormData({...formData, km: e.target.value})}
                       className="input-field"
@@ -380,11 +384,13 @@ export default function Approvisionnement() {
                       Véhicule provisoire (optionnel)
                     </label>
                     <input
-                      type="text"
+                      type="number"
+                      maxlength="6"
+                      max="400000"
                       value={formData.vhc_provisoire}
                       onChange={(e) => setFormData({...formData, vhc_provisoire: e.target.value.toUpperCase()})}
                       className="input-field"
-                      placeholder="Ex: P123456"
+                      placeholder="Ex: 123456"
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       Si le véhicule principal n'est pas utilisé

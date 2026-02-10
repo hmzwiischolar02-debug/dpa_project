@@ -167,6 +167,7 @@ export default function Vehicules() {
                 <label className="label">Police <span className="text-red-500">*</span></label>
                 <input
                   type="text"
+                  maxlength="6"
                   value={formData.police}
                   onChange={(e) => setFormData({...formData, police: e.target.value.toUpperCase()})}
                   className="input-field"
@@ -182,7 +183,7 @@ export default function Vehicules() {
                   value={formData.nCivil}
                   onChange={(e) => setFormData({...formData, nCivil: e.target.value.toUpperCase()})}
                   className="input-field"
-                  placeholder="Ex: 259423"
+                  placeholder="Ex: 2594-A-1"
                   required
                 />
               </div>

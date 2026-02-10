@@ -226,7 +226,7 @@ async def list_approvisionnements(
             SELECT 
                 a.id, a.type_approvi, a.date, a.qte, a.km_precedent, a.km,
                 a.vhc_provisoire, a.km_provisoire, a.observations,
-                a.dotation_id, a.police_vehicule, a.matricule_conducteur, a.service_externe,
+                a.dotation_id, a.police_vehicule, a.matricule_conducteur, a.service_externe,d.qte as quota,d.reste,d.qte_consomme,
                 -- DOTATION related data
                 COALESCE(v.police, a.police_vehicule) as police,
                 COALESCE(b.nom, a.matricule_conducteur) as benificiaire_nom,
@@ -264,7 +264,7 @@ async def list_dotation_approvisionnements(
         cur.execute("""
             SELECT 
                 a.id, a.type_approvi, a.date, a.qte, a.km_precedent, a.km,
-                v.police, b.nom as benificiaire_nom, s.nom as service_nom
+                v.police, b.nom as benificiaire_nom, s.nom as service_nom,d.qte,d.reste,d.qte_consomme 
             FROM approvisionnement a
             LEFT JOIN dotation d ON a.dotation_id = d.id
             LEFT JOIN vehicule v ON d.vehicule_id = v.id

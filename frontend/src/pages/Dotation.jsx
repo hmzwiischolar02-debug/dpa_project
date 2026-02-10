@@ -427,7 +427,7 @@ export default function Dotation() {
                       <td className="px-6 py-4">
                         <div>
                           <p className="font-medium text-gray-900">{item.police}</p>
-                          <p className="text-sm text-gray-500">{item.marque}</p>
+                          <p className="text-sm font-medium text-gray-500">{item.marque}</p>
                         </div>
                       </td>
                       <td className="px-6 py-4">
