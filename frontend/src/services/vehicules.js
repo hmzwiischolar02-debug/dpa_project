@@ -43,6 +43,14 @@ export const vehiculesService = {
   async delete(id) {
     const response = await api.delete(`/vehicules/${id}`);
     return response.data;
+  },
+
+  /**
+   * Get vehicle by police number
+   */
+  async getByPolice(police) {
+    const response = await api.get(`/vehicules/by-police/${police}`);
+    return response.data;
   }
 };
 

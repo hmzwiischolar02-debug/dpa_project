@@ -108,6 +108,26 @@ async def create_dotation_approvisionnement(
             result = cur.fetchone()
             appro_id = result['id']
             
+            # If provisoire vehicle is used AND km_provisoire is provided
+            # Try to update the provisoire vehicle's KM in the database
+            if appro.vhc_provisoire and appro.km_provisoire:
+                try:
+                    cur.execute("""
+                        UPDATE vehicule 
+                        SET km = %s 
+                        WHERE police = %s
+                        RETURNING id
+                    """, (appro.km_provisoire, appro.vhc_provisoire))
+                    
+                    updated = cur.fetchone()
+                    if updated:
+                        print(f"✅ Updated provisoire vehicle {appro.vhc_provisoire} KM to {appro.km_provisoire}")
+                    else:
+                        print(f"ℹ️ Provisoire vehicle {appro.vhc_provisoire} not found in DB - continuing without update")
+                except Exception as e:
+                    # Don't fail the entire operation if provisoire update fails
+                    print(f"⚠️ Could not update provisoire vehicle KM: {str(e)}")
+            
             # Auto-close dotation if quota reached
             cur.execute("""
                 UPDATE dotation
@@ -220,7 +240,7 @@ async def list_approvisionnements(
         cur.execute(count_query, params)
         total = cur.fetchone()['total']
         
-        # Get paginated results with JOINs
+        # Get paginated results with JOINs (including provisoire vehicle data)
         offset = (page - 1) * per_page
         cur.execute(f"""
             SELECT 
@@ -234,12 +254,16 @@ async def list_approvisionnements(
                 COALESCE(v.marque, '') as marque,
                 COALESCE(v.carburant, 'gazoil') as carburant,
                 COALESCE(b.fonction, '') as benificiaire_fonction,
-                COALESCE(s.direction, '') as direction
+                COALESCE(s.direction, '') as direction,
+                -- Provisoire vehicle data (if exists in DB)
+                vp.km as vhc_provisoire_km_db,
+                vp.marque as vhc_provisoire_marque
             FROM approvisionnement a
             LEFT JOIN dotation d ON a.dotation_id = d.id AND a.type_approvi = 'DOTATION'
             LEFT JOIN vehicule v ON d.vehicule_id = v.id
             LEFT JOIN benificiaire b ON d.benificiaire_id = b.id
             LEFT JOIN service s ON b.service_id = s.id
+            LEFT JOIN vehicule vp ON a.vhc_provisoire = vp.police
             {where_clause}
             ORDER BY a.date DESC, a.id DESC
             LIMIT %s OFFSET %s
@@ -318,6 +342,32 @@ async def delete_approvisionnement(
         
         conn.commit()
         return {"success": True, "message": "Approvisionnement supprimé"}
+
+@router.get("/by-dotation/{dotation_id}", response_model=List[dict])
+async def get_approvisionnements_by_dotation(
+    dotation_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all approvisionnements for a specific dotation (Feature 1)"""
+    with get_db() as conn:
+        cur = get_db_cursor(conn)
+        cur.execute("""
+            SELECT 
+                a.id, a.type_approvi, a.date, a.qte, a.km_precedent, a.km,
+                a.vhc_provisoire, a.km_provisoire, a.observations,
+                v.police, v.marque, v.carburant,
+                b.nom as benificiaire_nom,
+                s.nom as service_nom
+            FROM approvisionnement a
+            JOIN dotation d ON a.dotation_id = d.id
+            JOIN vehicule v ON d.vehicule_id = v.id
+            JOIN benificiaire b ON d.benificiaire_id = b.id
+            JOIN service s ON b.service_id = s.id
+            WHERE a.dotation_id = %s
+            ORDER BY a.date DESC
+        """, (dotation_id,))
+        results = cur.fetchall()
+        return [dict(r) for r in results]
     
     # ADD THIS TO backend/app/api/approvisionnement.py
 

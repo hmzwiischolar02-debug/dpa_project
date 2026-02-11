@@ -49,7 +49,6 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
       item.service_nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.police_vehicule?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.matricule_conducteur?.toLowerCase().includes(searchTerm.toLowerCase());
-      
     
     return matchesSearch;
   });
@@ -184,6 +183,36 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
         </div>
       </div>
 
+      {/* Summary Row - Calculate totals from filtered data */}
+      {filteredData.length > 0 && (
+        <div className="card p-4 bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-8">
+              <div>
+                <p className="text-xs text-gray-600 mb-1">📊 Total Quantité</p>
+                <p className="text-xl font-bold text-blue-600">
+                  {filteredData.reduce((sum, item) => sum + (parseFloat(item.qte) || 0), 0).toFixed(2)} L
+                </p>
+              </div>
+              <div className="h-12 w-px bg-gray-300"></div>
+              <div>
+                <p className="text-xs text-gray-600 mb-1">📈 Nombre d'approvisionnements</p>
+                <p className="text-xl font-bold text-gray-700">
+                  {filteredData.length}
+                </p>
+              </div>
+              <div className="h-12 w-px bg-gray-300"></div>
+              <div>
+                <p className="text-xs text-gray-600 mb-1">🚗 Kilométrage Total</p>
+                <p className="text-xl font-bold text-gray-700">
+                  {filteredData.reduce((sum, item) => sum + (item.km - item.km_precedent), 0).toLocaleString()} km
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="card overflow-hidden">
         {currentData.length > 0 ? (
@@ -195,7 +224,7 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
                     <th className="px-6 py-3 text-left table-header">Type</th>
                     <th className="px-6 py-3 text-left table-header">Date</th>
                     <th className="px-6 py-3 text-left table-header">Véhicule</th>
-                    <th className="px-6 py-3 text-left table-header">Benificiaire</th>
+                    <th className="px-6 py-3 text-left table-header">Responsable</th>
                     <th className="px-6 py-3 text-left table-header">Service</th>
                     <th className="px-6 py-3 text-left table-header">Quantité</th>
                     <th className="px-6 py-3 text-left table-header">KM</th>
@@ -220,7 +249,6 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
                         <p className="font-semibold text-gray-900">
                           {item.police || item.police_vehicule || 'N/A'}
                         </p>
-                        <p className="text-sm text-gray-600">{item.marque}</p>
                         {item.vhc_provisoire && (
                           <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
                             Provisoire: {item.vhc_provisoire}
@@ -231,23 +259,36 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
                         <p className="text-sm text-gray-900">
                           {item.benificiaire_nom || item.matricule_conducteur || 'N/A'}
                         </p>
-                        <p className="text-sm text-gray-600">{item.benificiaire_fonction}</p>
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-sm text-gray-900">
                           {item.service_nom || item.service_externe || 'N/A'}
                         </p>
-                        <p className="text-sm text-gray-600">{item.direction}</p>
                       </td>
                       <td className="px-6 py-4">
                         <p className="font-semibold text-gray-900">{item.qte} L</p>
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm">
-                          <p className="text-gray-900">{item.km_precedent} → {item.km}</p>
-                          <p className="text-xs text-gray-600">
-                            +{item.km - item.km_precedent} km
-                          </p>
+                          {item.vhc_provisoire ? (
+                            // Show km_provisoire for provisoire vehicles
+                            <>
+                              <p className="text-gray-900">
+                                {item.km_precedent} → {item.km_provisoire || item.km}
+                              </p>
+                              <p className="text-xs text-yellow-600 flex items-center gap-1">
+                                <span>📍 KM Provisoire</span>
+                              </p>
+                            </>
+                          ) : (
+                            // Show normal km for regular vehicles
+                            <>
+                              <p className="text-gray-900">{item.km_precedent} → {item.km}</p>
+                              <p className="text-xs text-gray-600">
+                                +{item.km - item.km_precedent} km
+                              </p>
+                            </>
+                          )}
                         </div>
                       </td>
                       {isAdmin && (

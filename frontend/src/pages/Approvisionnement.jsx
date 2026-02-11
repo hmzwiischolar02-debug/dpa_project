@@ -362,6 +362,9 @@ export default function Approvisionnement() {
                   <div>
                     <label className="label">
                       Kilométrage <span className="text-red-500">*</span>
+                      {formData.vhc_provisoire && (
+                        <span className="text-gray-500 text-xs ml-2">(Auto - véhicule provisoire)</span>
+                      )}
                     </label>
                     <input
                       type="number"
@@ -372,6 +375,7 @@ export default function Approvisionnement() {
                       className="input-field"
                       placeholder={`Supérieur à ${vehicleData.km}`}
                       required
+                      disabled={!!formData.vhc_provisoire}
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       KM précédent: {vehicleData.km}
@@ -388,7 +392,15 @@ export default function Approvisionnement() {
                       maxlength="6"
                       max="400000"
                       value={formData.vhc_provisoire}
-                      onChange={(e) => setFormData({...formData, vhc_provisoire: e.target.value.toUpperCase()})}
+                      onChange={(e) => {
+                        const newValue = e.target.value.toUpperCase();
+                        setFormData({
+                          ...formData, 
+                          vhc_provisoire: newValue,
+                          // Auto-set normal KM to km_precedent when provisoire is entered
+                          km: newValue ? vehicleData.km : (formData.km || vehicleData.km)
+                        });
+                      }}
                       className="input-field"
                       placeholder="Ex: 123456"
                     />

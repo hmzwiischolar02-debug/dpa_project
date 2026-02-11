@@ -8,13 +8,6 @@ export const approvisionnementService = {
     const response = await api.post('/approvisionnement/search', { police });
     return response.data;
   },
-  /**
-* Get last recorded KM for a vehicle by police number
-   */
-  async getLastKm(police) {
-    const response = await api.get(`/approvisionnement/last-km/${police}`);
-    return response.data;
-  },
 
   /**
    * Create DOTATION approvisionnement
@@ -70,6 +63,14 @@ export const approvisionnementService = {
    */
   async delete(id) {
     const response = await api.delete(`/approvisionnement/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Get approvisionnements by dotation ID
+   */
+  async getByDotation(dotationId) {
+    const response = await api.get(`/approvisionnement/by-dotation/${dotationId}`);
     return response.data;
   }
 };

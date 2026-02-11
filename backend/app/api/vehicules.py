@@ -140,3 +140,24 @@ async def delete_vehicule(
         
         conn.commit()
         return {"success": True, "message": "Véhicule désactivé"}
+
+@router.get("/by-police/{police}", response_model=dict)
+async def get_vehicle_by_police(
+    police: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get vehicle information by police number (Feature 2 - Provisoire validation)"""
+    with get_db() as conn:
+        cur = get_db_cursor(conn)
+        cur.execute("""
+            SELECT 
+                id, police, ncivil as "nCivil", marque, carburant, km, actif
+            FROM vehicule
+            WHERE police = %s
+        """, (police,))
+        result = cur.fetchone()
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Véhicule non trouvé")
+        
+        return dict(result)
