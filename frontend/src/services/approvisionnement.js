@@ -34,8 +34,8 @@ export const approvisionnementService = {
   /**
    * Get list of all approvisionnements
    */
-  async getList(skip = 0, limit = 1000, type_filter = null) {
-    const params = { skip, limit };
+  async getList(page = 1, per_page = 5000, type_filter = null) {
+    const params = { page, per_page };
     if (type_filter) {
       params.type_filter = type_filter;
     }
@@ -47,15 +47,15 @@ export const approvisionnementService = {
   /**
    * Get DOTATION approvisionnements only
    */
-  async getDotationList(skip = 0, limit = 1000) {
-    return this.getList(skip, limit, 'DOTATION');
+  async getDotationList(page = 1, per_page = 5000) {
+    return this.getList(page, per_page, 'DOTATION');
   },
 
   /**
    * Get MISSION approvisionnements only
    */
-  async getMissionList(skip = 0, limit = 1000) {
-    return this.getList(skip, limit, 'MISSION');
+  async getMissionList(page = 1, per_page = 5000) {
+    return this.getList(page, per_page, 'MISSION');
   },
 
   /**

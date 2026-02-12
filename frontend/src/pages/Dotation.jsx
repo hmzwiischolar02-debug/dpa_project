@@ -1,30 +1,29 @@
 import { useState } from 'react';
-import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileText, CheckCircle, XCircle, Plus, Edit2, Trash2, Lock, Unlock, Search, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Calendar, Users, Fuel, FileText, AlertCircle, ChevronRight, ChevronDown, Search } from 'lucide-react';
 import { dotationService } from '../services/dotation';
-import { vehiculesService, benificiairesService } from '../services/vehicules';
+import { vehiculesService } from '../services/vehicules';
+import { benificiairesService } from '../services/vehicules';
 import { approvisionnementService } from '../services/approvisionnement';
 import { getUser } from '../services/auth';
-import ReadOnlyBanner from '../components/ReadOnlyBanner';
 import Pagination from '../components/Pagination';
-import SearchInput from '../components/SearchInput';
+import ReadOnlyBanner from '../components/ReadOnlyBanner';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import React from 'react';
 
 export default function Dotation() {
-  const [activeTab, setActiveTab] = useState('active');
   const [showForm, setShowForm] = useState(false);
-  const [editingDotation, setEditingDotation] = useState(null);
+  const [activeTab, setActiveTab] = useState('active');
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedDotation, setExpandedDotation] = useState(null);
-  const perPage = 20;
+  const perPage = 10;
   
   const [formData, setFormData] = useState({
     vehicule_id: '',
     benificiaire_id: '',
-    mois: new Date().getMonth() + 1,
+    mois: '',
     annee: new Date().getFullYear(),
     qte: ''
   });
@@ -33,142 +32,124 @@ export default function Dotation() {
   const isAdmin = user?.role === 'ADMIN';
   const queryClient = useQueryClient();
 
-  // Fetch active dotations with pagination and search
-  const { data: activeDotationsData, isLoading: loadingActive } = useQuery({
-    queryKey: ['dotations', 'active', page, searchTerm],
-    queryFn: () => dotationService.getActive({ page, per_page: perPage, search: searchTerm }),
-    enabled: activeTab === 'active'
+  // Fetch dotations
+  const { data: paginationData, isLoading } = useQuery({
+    queryKey: ['dotations', activeTab, page],
+    queryFn: () => dotationService.getAll({
+      page,
+      per_page: perPage,
+      active_only: activeTab === 'active'
+    })
   });
 
-  // Fetch archived dotations with pagination and search
-  const { data: archivedDotationsData, isLoading: loadingArchived } = useQuery({
-    queryKey: ['dotations', 'archived', page, searchTerm],
-    queryFn: () => dotationService.getArchived({ page, per_page: perPage, search: searchTerm }),
-    enabled: activeTab === 'archived'
-  });
-
-  // Extract actual data arrays
-  const activeDotations = Array.isArray(activeDotationsData) ? activeDotationsData : (activeDotationsData?.items || []);
-  const archivedDotations = Array.isArray(archivedDotationsData) ? archivedDotationsData : (archivedDotationsData?.items || []);
-  
-  // Pagination data
-  const paginationData = activeTab === 'active' ? activeDotationsData : archivedDotationsData;
+  const currentData = paginationData?.items || [];
   const totalPages = paginationData?.pages || 1;
   const totalItems = paginationData?.total || 0;
 
-  // Fetch vehicles for form
+  // Client-side search filter
+  const filteredData = currentData.filter(dotation => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      dotation.police?.toLowerCase().includes(search) ||
+      dotation.marque?.toLowerCase().includes(search) ||
+      dotation.benificiaire_nom?.toLowerCase().includes(search) ||
+      dotation.service_nom?.toLowerCase().includes(search)
+    );
+  });
+
+  // Fetch AVAILABLE vehicles for form (only those without active dotation)
   const { data: vehiclesData } = useQuery({
-    queryKey: ['vehicles'],
-    queryFn: () => vehiculesService.getAll({ page: 1, per_page: 1000, active_only: true }),
-    enabled: isAdmin
+    queryKey: ['available-vehicles', formData.mois, formData.annee],
+    queryFn: () => dotationService.getAvailableVehicles(formData.mois, formData.annee),
+    enabled: isAdmin && showForm && !!formData.mois && !!formData.annee
   });
 
-  // Fetch beneficiaires for form
+  // Fetch AVAILABLE beneficiaires for form (only those without active dotation)
   const { data: beneficiairesData } = useQuery({
-    queryKey: ['beneficiaires'],
-    queryFn: () => benificiairesService.getAll({ page: 1, per_page: 1000 }),
-    enabled: isAdmin
+    queryKey: ['available-beneficiaires', formData.mois, formData.annee],
+    queryFn: () => dotationService.getAvailableBenificiaires(formData.mois, formData.annee),
+    enabled: isAdmin && showForm && !!formData.mois && !!formData.annee
   });
 
-  // Extract items from paginated response
-  const vehicles = vehiclesData?.items || [];
-  const beneficiaires = beneficiairesData?.items || [];
+  // Extract items from available lists (API returns array directly, not paginated)
+  const vehicles = vehiclesData || [];
+  const beneficiaires = beneficiairesData || [];
 
-  // Fetch approvisionnements for expanded dotation
+  // Fetch approvisionnements for expanded dotation (Feature 1)
   const { data: dotationAppros, isLoading: loadingAppros } = useQuery({
     queryKey: ['dotation-appros', expandedDotation],
     queryFn: () => approvisionnementService.getByDotation(expandedDotation),
     enabled: expandedDotation !== null
   });
 
-  // Create/Update dotation mutation
-  const saveMutation = useMutation({
+  // Create mutation
+  const createMutation = useMutation({
     mutationFn: (data) => dotationService.create(data),
     onSuccess: () => {
-      toast.success('Dotation enregistrée!');
+      toast.success('Dotation créée avec succès!');
       queryClient.invalidateQueries(['dotations']);
       queryClient.invalidateQueries(['dashboard-stats']);
-      resetForm();
+      setShowForm(false);
+      setFormData({
+        vehicule_id: '',
+        benificiaire_id: '',
+        mois: '',
+        annee: new Date().getFullYear(),
+        qte: ''
+      });
     },
     onError: (error) => {
-      toast.error(error.response?.data?.detail || 'Erreur lors de l\'enregistrement');
+      toast.error(error.response?.data?.detail || 'Erreur lors de la création');
     }
   });
 
-  // Delete dotation mutation
-  const deleteMutation = useMutation({
-    mutationFn: (id) => dotationService.delete(id),
-    onSuccess: () => {
-      toast.success('Dotation supprimée!');
-      queryClient.invalidateQueries(['dotations']);
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.detail || 'Erreur lors de la suppression');
-    }
-  });
-
-  // Close dotation mutation
+  // Close mutation
   const closeMutation = useMutation({
     mutationFn: (id) => dotationService.close(id),
     onSuccess: () => {
-      toast.success('Dotation clôturée!');
+      toast.success('Dotation clôturée');
       queryClient.invalidateQueries(['dotations']);
-      queryClient.invalidateQueries(['dashboard-stats']);
     },
     onError: (error) => {
-      toast.error(error.response?.data?.detail || 'Erreur lors de la clôture');
+      toast.error(error.response?.data?.detail || 'Erreur');
     }
   });
 
-  const resetForm = () => {
-    setFormData({
-      vehicule_id: '',
-      benificiaire_id: '',
-      mois: new Date().getMonth() + 1,
-      annee: new Date().getFullYear(),
-      qte: ''
-    });
-    setEditingDotation(null);
-    setShowForm(false);
-  };
-
   const handleSubmit = (e) => {
     e.preventDefault();
-    
-    if (!formData.vehicule_id || !formData.benificiaire_id || !formData.qte) {
-      toast.error('Veuillez remplir tous les champs obligatoires');
-      return;
-    }
-
-    saveMutation.mutate({
-      vehicule_id: parseInt(formData.vehicule_id),
-      benificiaire_id: parseInt(formData.benificiaire_id),
-      mois: parseInt(formData.mois),
-      annee: parseInt(formData.annee),
-      qte: parseFloat(formData.qte)
-    });
-  };
-
-  const handleDelete = (id) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette dotation ?')) {
-      deleteMutation.mutate(id);
-    }
+    createMutation.mutate(formData);
   };
 
   const handleClose = (id) => {
-    if (window.confirm('Êtes-vous sûr de vouloir clôturer cette dotation ? Cette action est irréversible.')) {
+    if (window.confirm('Êtes-vous sûr de vouloir clôturer cette dotation?')) {
       closeMutation.mutate(id);
     }
   };
 
-  const currentData = activeTab === 'active' ? activeDotations : archivedDotations;
-  const isLoading = activeTab === 'active' ? loadingActive : loadingArchived;
+  const months = [
+    { value: '1', label: 'Janvier' },
+    { value: '2', label: 'Février' },
+    { value: '3', label: 'Mars' },
+    { value: '4', label: 'Avril' },
+    { value: '5', label: 'Mai' },
+    { value: '6', label: 'Juin' },
+    { value: '7', label: 'Juillet' },
+    { value: '8', label: 'Août' },
+    { value: '9', label: 'Septembre' },
+    { value: '10', label: 'Octobre' },
+    { value: '11', label: 'Novembre' },
+    { value: '12', label: 'Décembre' }
+  ];
 
-  const getStatusColor = (reste) => {
-    if (reste < 20) return 'text-red-600';
-    if (reste < 50) return 'text-orange-600';
-    return 'text-green-600';
-  };
+  if (isLoading) {
+    return (
+      <div className="card p-12 text-center">
+        <div className="spinner mx-auto mb-4"></div>
+        <p className="text-gray-600">Chargement...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -176,11 +157,11 @@ export default function Dotation() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-            <FileText className="h-8 w-8 text-indigo-600" />
-            Gestion des Dotations
+            <Fuel className="h-8 w-8 text-primary-600" />
+            Dotations Mensuelles
           </h1>
           <p className="text-gray-600">
-            {isAdmin 
+            {isAdmin
               ? 'Gérer les quotas mensuels de carburant'
               : 'Consulter les dotations mensuelles'
             }
@@ -210,16 +191,70 @@ export default function Dotation() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Vehicle Selection */}
+              {/* Month - FIRST */}
+              <div>
+                <label className="label">
+                  Mois <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.mois}
+                  onChange={(e) => {
+                    setFormData({
+                      ...formData, 
+                      mois: e.target.value,
+                      vehicule_id: '', // Reset selections when month changes
+                      benificiaire_id: ''
+                    });
+                  }}
+                  className="input-field"
+                  required
+                >
+                  <option value="">Sélectionner un mois</option>
+                  {months.map(m => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Year - SECOND */}
+              <div>
+                <label className="label">
+                  Année <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  value={formData.annee}
+                  onChange={(e) => {
+                    setFormData({
+                      ...formData, 
+                      annee: e.target.value,
+                      vehicule_id: '', // Reset selections when year changes
+                      benificiaire_id: ''
+                    });
+                  }}
+                  className="input-field"
+                  min="2020"
+                  max="2030"
+                  required
+                />
+              </div>
+
+              {/* Vehicle Selection - THIRD (disabled until mois/annee selected) */}
               <div>
                 <label className="label">
                   Véhicule <span className="text-red-500">*</span>
+                  {!formData.mois || !formData.annee ? (
+                    <span className="text-xs text-gray-500 ml-2">(Sélectionner mois/année d'abord)</span>
+                  ) : vehicles && vehicles.length === 0 ? (
+                    <span className="text-xs text-orange-500 ml-2">(Aucun véhicule disponible)</span>
+                  ) : null}
                 </label>
                 <select
                   value={formData.vehicule_id}
                   onChange={(e) => setFormData({...formData, vehicule_id: e.target.value})}
                   className="input-field"
                   required
+                  disabled={!formData.mois || !formData.annee}
                 >
                   <option value="">Sélectionner un véhicule</option>
                   {vehicles?.map(v => (
@@ -230,16 +265,22 @@ export default function Dotation() {
                 </select>
               </div>
 
-              {/* Beneficiaire Selection */}
+              {/* Beneficiaire Selection - FOURTH (disabled until mois/annee selected) */}
               <div>
                 <label className="label">
                   Bénéficiaire <span className="text-red-500">*</span>
+                  {!formData.mois || !formData.annee ? (
+                    <span className="text-xs text-gray-500 ml-2">(Sélectionner mois/année d'abord)</span>
+                  ) : beneficiaires && beneficiaires.length === 0 ? (
+                    <span className="text-xs text-orange-500 ml-2">(Aucun bénéficiaire disponible)</span>
+                  ) : null}
                 </label>
                 <select
                   value={formData.benificiaire_id}
                   onChange={(e) => setFormData({...formData, benificiaire_id: e.target.value})}
                   className="input-field"
                   required
+                  disabled={!formData.mois || !formData.annee}
                 >
                   <option value="">Sélectionner un bénéficiaire</option>
                   {beneficiaires?.map(b => (
@@ -250,47 +291,10 @@ export default function Dotation() {
                 </select>
               </div>
 
-              {/* Month */}
-              <div>
-                <label className="label">
-                  Mois <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.mois}
-                  onChange={(e) => setFormData({...formData, mois: e.target.value})}
-                  className="input-field"
-                  required
-                >
-                  {[...Array(12)].map((_, i) => (
-                    <option key={i + 1} value={i + 1}>
-                      {new Date(2000, i).toLocaleString('fr-FR', { month: 'long' })}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Year */}
-              <div>
-                <label className="label">
-                  Année <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.annee}
-                  onChange={(e) => setFormData({...formData, annee: e.target.value})}
-                  className="input-field"
-                  required
-                >
-                  {[...Array(3)].map((_, i) => {
-                    const year = new Date().getFullYear() + i;
-                    return <option key={year} value={year}>{year}</option>
-                  })}
-                </select>
-              </div>
-
               {/* Quantity */}
-              <div className="md:col-span-2">
+              <div>
                 <label className="label">
-                  Quantité (Litres) <span className="text-red-500">*</span>
+                  Quantité (L) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -298,102 +302,95 @@ export default function Dotation() {
                   value={formData.qte}
                   onChange={(e) => setFormData({...formData, qte: e.target.value})}
                   className="input-field"
-                  placeholder="Ex: 120"
+                  placeholder="Ex: 140"
                   required
                 />
               </div>
             </div>
 
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                disabled={createMutation.isPending}
+                className="btn-primary"
+              >
+                {createMutation.isPending ? 'Création...' : 'Créer la dotation'}
+              </button>
               <button
                 type="button"
-                onClick={resetForm}
+                onClick={() => setShowForm(false)}
                 className="btn-secondary"
               >
                 Annuler
-              </button>
-              <button
-                type="submit"
-                disabled={saveMutation.isPending}
-                className="btn-primary flex-1"
-              >
-                {saveMutation.isPending ? 'Enregistrement...' : 'Créer la dotation'}
               </button>
             </div>
           </form>
         </div>
       )}
 
+      {/* Search Bar */}
+      <div className="card p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Rechercher par véhicule, bénéficiaire, service..."
+            className="input-field pl-10 w-full"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
         <button
-          onClick={() => setActiveTab('active')}
-          className={`px-6 py-3 font-medium transition-colors border-b-2 ${
+          onClick={() => {
+            setActiveTab('active');
+            setPage(1);
+            setSearchTerm('');
+          }}
+          className={`px-4 py-2 font-medium transition-colors border-b-2 ${
             activeTab === 'active'
               ? 'border-primary-600 text-primary-600'
               : 'border-transparent text-gray-600 hover:text-gray-900'
           }`}
         >
-          <div className="flex items-center gap-2">
-            <CheckCircle className="h-5 w-5" />
-            Dotations Actives
-            {activeDotations && (
-              <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">
-                {activeDotations.length}
-              </span>
-            )}
-          </div>
+          Dotations Actives
         </button>
-
         <button
-          onClick={() => setActiveTab('archived')}
-          className={`px-6 py-3 font-medium transition-colors border-b-2 ${
+          onClick={() => {
+            setActiveTab('archived');
+            setPage(1);
+            setSearchTerm('');
+          }}
+          className={`px-4 py-2 font-medium transition-colors border-b-2 ${
             activeTab === 'archived'
               ? 'border-primary-600 text-primary-600'
               : 'border-transparent text-gray-600 hover:text-gray-900'
           }`}
         >
-          <div className="flex items-center gap-2">
-            <XCircle className="h-5 w-5" />
-            Archives
-            {archivedDotations && (
-              <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full text-xs">
-                {archivedDotations.length}
-              </span>
-            )}
-          </div>
+          Archives
         </button>
       </div>
 
-      {/* Search Bar */}
-      <div className="card p-4">
-        <div className="flex items-center gap-4">
-          <SearchInput
-            value={searchTerm}
-            onChange={(value) => {
-              setSearchTerm(value);
-              setPage(1); // Reset to page 1 when searching
-            }}
-            placeholder="Rechercher par véhicule, bénéficiaire, service..."
-          />
-        </div>
-      </div>
-
-      {/* Table */}
+      {/* Dotations Table */}
       <div className="card overflow-hidden">
-        {isLoading ? (
-          <div className="p-12 text-center">
-            <div className="spinner mx-auto mb-4"></div>
-            <p className="text-gray-600">Chargement...</p>
-          </div>
-        ) : currentData && currentData.length > 0 ? (
+        {filteredData && filteredData.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left table-header">Véhicule</th>
                   <th className="px-6 py-3 text-left table-header">Bénéficiaire</th>
-                  <th className="px-6 py-3 text-left table-header">Service</th>
                   <th className="px-6 py-3 text-left table-header">Période</th>
                   <th className="px-6 py-3 text-left table-header">Quota</th>
                   <th className="px-6 py-3 text-left table-header">Consommé</th>
@@ -403,183 +400,147 @@ export default function Dotation() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {currentData.map((dotation) => (
+                {filteredData.map((dotation) => (
                   <React.Fragment key={dotation.id}>
+                    {/* Main Row */}
                     <tr 
-                      className="hover:bg-gray-50 transition-colors cursor-pointer"
                       onClick={() => setExpandedDotation(expandedDotation === dotation.id ? null : dotation.id)}
+                      className="hover:bg-gray-50 transition-colors cursor-pointer"
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           {expandedDotation === dotation.id ? (
-                            <ChevronDown className="h-5 w-5 text-gray-400" />
+                            <ChevronDown className="h-4 w-4 text-gray-400" />
                           ) : (
-                            <ChevronRight className="h-5 w-5 text-gray-400" />
+                            <ChevronRight className="h-4 w-4 text-gray-400" />
                           )}
                           <div>
                             <p className="font-semibold text-gray-900">{dotation.police}</p>
-                            <p className="text-sm text-gray-600">{dotation.marque || 'N/A'}</p>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${
-                              dotation.carburant === 'gazoil' 
-                                ? 'bg-orange-100 text-orange-700'
-                                : 'bg-green-100 text-green-700'
-                            }`}>
-                              {dotation.carburant}
-                            </span>
+                            <p className="text-sm text-gray-600">{dotation.marque}</p>
                           </div>
                         </div>
                       </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium text-gray-900">{dotation.benificiaire_nom}</p>
-                        <p className="text-sm text-gray-600">{dotation.benificiaire_fonction}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium text-gray-900">{dotation.service_nom}</p>
-                        <p className="text-sm text-gray-600">{dotation.direction}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                        {dotation.mois.toString().padStart(2, '0')}/{dotation.annee}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="font-semibold text-gray-900">{dotation.qte} L</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium text-gray-900">{dotation.qte_consomme.toFixed(2)} L</p>
-                        <p className="text-xs text-gray-600">
-                          {((dotation.qte_consomme / dotation.qte) * 100).toFixed(1)}%
+                      <td className="px-6 py-4">
+                        <p className="text-sm text-gray-900">{dotation.benificiaire_nom || dotation.benificiaire || 'N/A'}</p>
+                        <p className="text-xs text-gray-600">{dotation.benificiaire_fonction || dotation.fonction || ''}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm text-gray-900">
+                          {months.find(m => m.value === dotation.mois.toString())?.label} {dotation.annee}
                         </p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className={`font-bold text-lg ${getStatusColor(dotation.reste)}`}>
-                        {dotation.reste.toFixed(2)} L
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                        dotation.cloture
-                          ? 'bg-gray-100 text-gray-700'
-                          : 'bg-green-100 text-green-700'
-                      }`}>
-                        {dotation.cloture ? 'Clôturé' : 'Actif'}
-                      </span>
-                    </td>
-                    
-                    {isAdmin && (
-                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-2">
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="font-semibold text-gray-900">{dotation.qte} L</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm text-gray-900">{dotation.qte_consomme.toFixed(2)} L</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className={`font-semibold ${
+                          dotation.reste < 20 ? 'text-red-600' : 'text-green-600'
+                        }`}>
+                          {dotation.reste.toFixed(2)} L
+                        </p>
+                      </td>
+                      <td className="px-6 py-4">
+                        {dotation.cloture ? (
+                          <span className="badge-archived">Clôturée</span>
+                        ) : (
+                          <span className="badge-active">Active</span>
+                        )}
+                      </td>
+                      {isAdmin && (
+                        <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                           {!dotation.cloture && (
-                            <>
-                              <button
-                                onClick={() => handleDelete(dotation.id)}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Supprimer"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handleClose(dotation.id)}
-                                className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-                                title="Clôturer"
-                              >
-                                <Lock className="h-4 w-4" />
-                              </button>
-                            </>
+                            <button
+                              onClick={() => handleClose(dotation.id)}
+                              className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+                            >
+                              Clôturer
+                            </button>
                           )}
-                          {dotation.cloture && (
-                            <span className="text-xs text-gray-500">Clôturé</span>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                  
-                  {/* Expanded Row - Approvisionnements List */}
-                  {expandedDotation === dotation.id && (
-                    <tr>
-                      <td colSpan={isAdmin ? 9 : 8} className="px-6 py-4 bg-gray-50">
-                        <div className="pl-8">
-                          <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                            <FileText className="h-5 w-5 text-primary-600" />
-                            Historique des approvisionnements ({dotationAppros?.length || 0})
-                          </h4>
-                          
-                          {loadingAppros ? (
-                            <div className="text-center py-8">
-                              <div className="spinner mx-auto mb-2"></div>
-                              <p className="text-sm text-gray-600">Chargement...</p>
-                            </div>
-                          ) : dotationAppros && dotationAppros.length > 0 ? (
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-sm">
-                                <thead className="bg-white border-b border-gray-200">
-                                  <tr>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">Date</th>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">Quantité</th>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">KM</th>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">Véhicule</th>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">Observations</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-200">
-                                  {dotationAppros.map((appro) => (
-                                    <tr key={appro.id} className="hover:bg-white">
-                                      <td className="px-4 py-3">
-                                        <p className="font-medium text-gray-900">
-                                          {format(new Date(appro.date), 'dd/MM/yyyy')}
-                                        </p>
-                                        <p className="text-xs text-gray-600">
-                                          {format(new Date(appro.date), 'HH:mm')}
-                                        </p>
-                                      </td>
-                                      <td className="px-4 py-3">
-                                        <span className="font-semibold text-gray-900">{appro.qte} L</span>
-                                      </td>
-                                      <td className="px-4 py-3">
-                                        <p className="text-gray-900">{appro.km_precedent} → {appro.km}</p>
-                                        <p className="text-xs text-gray-600">+{appro.km - appro.km_precedent} km</p>
-                                      </td>
-                                      <td className="px-4 py-3">
-                                        {appro.vhc_provisoire ? (
-                                          <div>
-                                            <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
-                                              Provisoire: {appro.vhc_provisoire}
-                                            </span>
-                                            <p className="text-xs text-gray-600 mt-1">KM: {appro.km_provisoire}</p>
-                                          </div>
-                                        ) : (
-                                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                                            Véhicule principal
-                                          </span>
-                                        )}
-                                      </td>
-                                      <td className="px-4 py-3">
-                                        <p className="text-sm text-gray-600 max-w-xs truncate">
-                                          {appro.observations || '-'}
-                                        </p>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          ) : (
-                            <div className="text-center py-8 text-gray-500">
-                              <FileText className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                              <p>Aucun approvisionnement pour cette dotation</p>
-                            </div>
-                          )}
-                        </div>
-                      </td>
+                        </td>
+                      )}
                     </tr>
-                  )}
+
+                    {/* Expanded Row - Approvisionnements List (Feature 1) */}
+                    {expandedDotation === dotation.id && (
+                      <tr>
+                        <td colSpan={isAdmin ? 8 : 7} className="px-6 py-4 bg-gray-50">
+                          <div className="pl-8">
+                            <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                              <FileText className="h-5 w-5 text-primary-600" />
+                              Historique des approvisionnements ({dotationAppros?.length || 0})
+                            </h4>
+                            
+                            {loadingAppros ? (
+                              <div className="text-center py-8">
+                                <div className="spinner mx-auto mb-2"></div>
+                                <p className="text-sm text-gray-600">Chargement...</p>
+                              </div>
+                            ) : dotationAppros && dotationAppros.length > 0 ? (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                  <thead className="bg-white border-b border-gray-200">
+                                    <tr>
+                                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">Date</th>
+                                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">Quantité</th>
+                                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">KM</th>
+                                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">Véhicule</th>
+                                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">Observations</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-200">
+                                    {dotationAppros.map((appro) => (
+                                      <tr key={appro.id} className="hover:bg-white">
+                                        <td className="px-4 py-3">
+                                          <p className="font-medium text-gray-900">
+                                            {format(new Date(appro.date), 'dd/MM/yyyy')}
+                                          </p>
+                                          <p className="text-xs text-gray-600">
+                                            {format(new Date(appro.date), 'HH:mm')}
+                                          </p>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          <span className="font-semibold text-gray-900">{appro.qte} L</span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          <p className="text-gray-900">{appro.km_precedent} → {appro.km}</p>
+                                          <p className="text-xs text-gray-600">+{appro.km - appro.km_precedent} km</p>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          {appro.vhc_provisoire ? (
+                                            <div>
+                                              <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
+                                                Provisoire: {appro.vhc_provisoire}
+                                              </span>
+                                              <p className="text-xs text-gray-600 mt-1">KM: {appro.km_provisoire}</p>
+                                            </div>
+                                          ) : (
+                                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                              Véhicule principal
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          <p className="text-sm text-gray-600 max-w-xs truncate">
+                                            {appro.observations || '-'}
+                                          </p>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-600 text-center py-4">
+                                Aucun approvisionnement pour cette dotation
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                   </React.Fragment>
                 ))}
               </tbody>
@@ -587,10 +548,7 @@ export default function Dotation() {
           </div>
         ) : (
           <div className="p-12 text-center">
-            <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Aucune dotation trouvée
-            </h3>
+            <Fuel className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-600">
               {activeTab === 'active'
                 ? 'Aucune dotation active pour le moment'
@@ -601,40 +559,47 @@ export default function Dotation() {
         )}
       </div>
 
-      {/* Pagination */}
-      {currentData && currentData.length > 0 && totalPages > 1 && (
-        <Pagination
-          currentPage={page}
-          totalPages={totalPages}
-          onPageChange={setPage}
-          totalItems={totalItems}
-          perPage={perPage}
-        />
+      {/* Pagination Info & Controls */}
+      {filteredData && filteredData.length > 0 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-600">
+            Affichage de {((page - 1) * perPage) + 1} à {Math.min(page * perPage, totalItems)} sur {totalItems} dotation(s)
+          </p>
+          {totalPages > 1 && (
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              totalItems={totalItems}
+              perPage={perPage}
+            />
+          )}
+        </div>
       )}
 
       {/* Stats Summary */}
-      {currentData && currentData.length > 0 && (
+      {filteredData && filteredData.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="card p-4 bg-gradient-to-br from-blue-50 to-blue-100">
             <p className="text-sm text-blue-600 mb-1">Total Dotations</p>
-            <p className="text-2xl font-bold text-blue-900">{currentData.length}</p>
+            <p className="text-2xl font-bold text-blue-900">{filteredData.length}</p>
           </div>
           <div className="card p-4 bg-gradient-to-br from-green-50 to-green-100">
             <p className="text-sm text-green-600 mb-1">Quota Total</p>
             <p className="text-2xl font-bold text-green-900">
-              {currentData.reduce((sum, d) => sum + d.qte, 0)} L
+              {filteredData.reduce((sum, d) => sum + d.qte, 0)} L
             </p>
           </div>
           <div className="card p-4 bg-gradient-to-br from-orange-50 to-orange-100">
             <p className="text-sm text-orange-600 mb-1">Consommé</p>
             <p className="text-2xl font-bold text-orange-900">
-              {currentData.reduce((sum, d) => sum + d.qte_consomme, 0).toFixed(0)} L
+              {filteredData.reduce((sum, d) => sum + d.qte_consomme, 0).toFixed(0)} L
             </p>
           </div>
           <div className="card p-4 bg-gradient-to-br from-purple-50 to-purple-100">
             <p className="text-sm text-purple-600 mb-1">Reste</p>
             <p className="text-2xl font-bold text-purple-900">
-              {currentData.reduce((sum, d) => sum + d.reste, 0).toFixed(0)} L
+              {filteredData.reduce((sum, d) => sum + d.reste, 0).toFixed(0)} L
             </p>
           </div>
         </div>

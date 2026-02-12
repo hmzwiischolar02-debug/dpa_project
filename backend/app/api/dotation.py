@@ -117,16 +117,21 @@ async def get_active_dotations(
             search_param = f"%{search}%"
             params = [search_param, search_param, search_param]
         
-        # Get total count - simpler query without JOINs
-        count_query = "SELECT COUNT(*) FROM dotation WHERE cloture = FALSE"
+        # Get total count - corrected for dict cursor
+        count_query = "SELECT COUNT(*) as total FROM dotation WHERE cloture = FALSE"
         
-        try:
+        if search:
+            count_query += """ AND (
+                EXISTS (SELECT 1 FROM vehicule v WHERE v.id = dotation.vehicule_id AND v.police ILIKE %s) OR
+                EXISTS (SELECT 1 FROM benificiaire b WHERE b.id = dotation.benificiaire_id AND b.nom ILIKE %s) OR
+                EXISTS (SELECT 1 FROM benificiaire b JOIN service s ON b.service_id = s.id WHERE b.id = dotation.benificiaire_id AND s.nom ILIKE %s)
+            )"""
+            cur.execute(count_query, [search_param, search_param, search_param])
+        else:
             cur.execute(count_query)
-            result = cur.fetchone()
-            total = result[0] if result else 0  # COUNT returns tuple, not dict
-        except Exception as e:
-            print(f"Count query error: {e}")
-            total = 0
+        
+        result = cur.fetchone()
+        total = result['total'] if result else 0
         
         # Get paginated results
         offset = (page - 1) * per_page
@@ -193,16 +198,21 @@ async def get_archived_dotations(
             search_param = f"%{search}%"
             params = [search_param, search_param, search_param]
         
-        # Count - simpler query
-        count_query = "SELECT COUNT(*) FROM dotation WHERE cloture = TRUE"
+        # Count - corrected for dict cursor
+        count_query = "SELECT COUNT(*) as total FROM dotation WHERE cloture = TRUE"
         
-        try:
+        if search:
+            count_query += """ AND (
+                EXISTS (SELECT 1 FROM vehicule v WHERE v.id = dotation.vehicule_id AND v.police ILIKE %s) OR
+                EXISTS (SELECT 1 FROM benificiaire b WHERE b.id = dotation.benificiaire_id AND b.nom ILIKE %s) OR
+                EXISTS (SELECT 1 FROM benificiaire b JOIN service s ON b.service_id = s.id WHERE b.id = dotation.benificiaire_id AND s.nom ILIKE %s)
+            )"""
+            cur.execute(count_query, [search_param, search_param, search_param])
+        else:
             cur.execute(count_query)
-            result = cur.fetchone()
-            total = result[0] if result else 0
-        except Exception as e:
-            print(f"Count query error: {e}")
-            total = 0
+        
+        result = cur.fetchone()
+        total = result['total'] if result else 0
         
         # Paginated results
         offset = (page - 1) * per_page

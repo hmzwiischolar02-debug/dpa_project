@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Printer, Trash2, Download, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Printer, Trash2, Download, Search, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react';
 import { approvisionnementService } from '../services/approvisionnement';
+import { exportToExcel } from '../utils/excelExport';
 import { getUser } from '../services/auth';
 import TypeBadge from './TypeBadge';
 import toast from 'react-hot-toast';
@@ -18,12 +19,12 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
   const isAdmin = user?.role === 'ADMIN';
   const queryClient = useQueryClient();
 
-  // Fetch approvisionnements
+  // Fetch approvisionnements - Get ALL from active dotations
   const { data: approvisionnements, isLoading } = useQuery({
     queryKey: ['approvisionnements', typeFilter],
     queryFn: () => {
-      if (typeFilter === 'all') return approvisionnementService.getList();
-      return approvisionnementService.getList(0, 1000, typeFilter);
+      if (typeFilter === 'all') return approvisionnementService.getList(1, 5000);
+      return approvisionnementService.getList(1, 5000, typeFilter);
     }
   });
 
@@ -70,30 +71,19 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
     toast.success('Impression du bon en cours...');
   };
 
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     if (!filteredData || filteredData.length === 0) {
       toast.error('Aucune donnée à exporter');
       return;
     }
 
-    const headers = ['Date', 'Type', 'Police/Véhicule', 'Bénéficiaire/Conducteur', 'Service', 'Quantité', 'KM'];
-    const csvData = filteredData.map(item => [
-      format(new Date(item.date), 'dd/MM/yyyy HH:mm'),
-      item.type_approvi,
-      item.police || item.police_vehicule || '',
-      item.benificiaire_nom || item.matricule_conducteur || '',
-      item.service_nom || item.service_externe || '',
-      item.qte,
-      `${item.km_precedent} → ${item.km}`
-    ]);
-
-    const csv = [headers, ...csvData].map(row => row.join(',')).join('\n');
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `approvisionnements_${format(new Date(), 'yyyyMMdd_HHmmss')}.csv`;
-    link.click();
-    toast.success('Export CSV réussi');
+    try {
+      const filename = exportToExcel(filteredData);
+      toast.success(`Fichier Excel exporté: ${filename}`);
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Erreur lors de l\'export Excel');
+    }
   };
 
   if (isLoading) {
@@ -172,42 +162,65 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
             </div>
           )}
 
-          {/* Export */}
+          {/* Export Excel */}
           <button
-            onClick={handleExportCSV}
+            onClick={handleExportExcel}
             className="btn-secondary flex items-center gap-2"
           >
-            <Download className="h-4 w-4" />
-            Export CSV
+            <FileSpreadsheet className="h-4 w-4" />
+            Export Excel
           </button>
         </div>
       </div>
 
-      {/* Summary Row - Calculate totals from filtered data */}
+      {/* Enhanced Summary Row - Single horizontal line */}
       {filteredData.length > 0 && (
-        <div className="card p-4 bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-8">
-              <div>
-                <p className="text-xs text-gray-600 mb-1">📊 Total Quantité</p>
-                <p className="text-xl font-bold text-blue-600">
-                  {filteredData.reduce((sum, item) => sum + (parseFloat(item.qte) || 0), 0).toFixed(2)} L
-                </p>
-              </div>
-              <div className="h-12 w-px bg-gray-300"></div>
-              <div>
-                <p className="text-xs text-gray-600 mb-1">📈 Nombre d'approvisionnements</p>
-                <p className="text-xl font-bold text-gray-700">
-                  {filteredData.length}
-                </p>
-              </div>
-              <div className="h-12 w-px bg-gray-300"></div>
-              <div>
-                <p className="text-xs text-gray-600 mb-1">🚗 Kilométrage Total</p>
-                <p className="text-xl font-bold text-gray-700">
-                  {filteredData.reduce((sum, item) => sum + (item.km - item.km_precedent), 0).toLocaleString()} km
-                </p>
-              </div>
+        <div className="card p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            {/* Check if filtering by specific vehicle (has quota data) */}
+            {filteredData[0]?.quota && filteredData[0]?.type_approvi === 'DOTATION' && (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600">📋 Quota:</span>
+                  <span className="text-lg font-bold text-indigo-600">{filteredData[0].quota} L</span>
+                </div>
+                <div className="h-8 w-px bg-gray-300"></div>
+              </>
+            )}
+            
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-600">📊 Total Qté:</span>
+              <span className="text-lg font-bold text-blue-600">
+                {filteredData.reduce((sum, item) => sum + (parseFloat(item.qte) || 0), 0).toFixed(2)} L
+              </span>
+            </div>
+            
+            {filteredData[0]?.quota && filteredData[0]?.type_approvi === 'DOTATION' && (
+              <>
+                <div className="h-8 w-px bg-gray-300"></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600">✅ Reste:</span>
+                  <span className={`text-lg font-bold ${
+                    (parseFloat(filteredData[0].reste) || 0) < 20 ? 'text-red-600' : 'text-green-600'
+                  }`}>
+                    {(parseFloat(filteredData[0].reste) || 0).toFixed(2)} L
+                  </span>
+                </div>
+              </>
+            )}
+            
+            <div className="h-8 w-px bg-gray-300"></div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-600">📈 Nombre:</span>
+              <span className="text-lg font-bold text-gray-700">{filteredData.length}</span>
+            </div>
+            
+            <div className="h-8 w-px bg-gray-300"></div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-600">🚗 KM Total:</span>
+              <span className="text-lg font-bold text-gray-700">
+                {filteredData.reduce((sum, item) => sum + ((item.km - item.km_precedent) || 0), 0).toLocaleString()} km
+              </span>
             </div>
           </div>
         </div>
@@ -271,14 +284,17 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
                       <td className="px-6 py-4">
                         <div className="text-sm">
                           {item.vhc_provisoire ? (
-                            // Show km_provisoire for provisoire vehicles
+                            // Show provisoire vehicle KM
                             <>
                               <p className="text-gray-900">
-                                {item.km_precedent} → {item.km_provisoire || item.km}
+                                {item.vhc_provisoire_km_db || item.km_precedent} → {item.km_provisoire || item.km}
                               </p>
                               <p className="text-xs text-yellow-600 flex items-center gap-1">
-                                <span>📍 KM Provisoire</span>
+                                <span>📍 KM Provisoire ({item.vhc_provisoire})</span>
                               </p>
+                              {item.vhc_provisoire_marque && (
+                                <p className="text-xs text-gray-500">{item.vhc_provisoire_marque}</p>
+                              )}
                             </>
                           ) : (
                             // Show normal km for regular vehicles

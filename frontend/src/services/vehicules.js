@@ -46,7 +46,7 @@ export const vehiculesService = {
   },
 
   /**
-   * Get vehicle by police number
+   * Get vehicle by police number (Feature 2B)
    */
   async getByPolice(police) {
     const response = await api.get(`/vehicules/by-police/${police}`);

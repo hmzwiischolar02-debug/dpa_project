@@ -368,6 +368,32 @@ async def get_approvisionnements_by_dotation(
         """, (dotation_id,))
         results = cur.fetchall()
         return [dict(r) for r in results]
+
+@router.get("/by-dotation/{dotation_id}", response_model=List[dict])
+async def get_approvisionnements_by_dotation(
+    dotation_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all approvisionnements for a specific dotation (Feature 1)"""
+    with get_db() as conn:
+        cur = get_db_cursor(conn)
+        cur.execute("""
+            SELECT 
+                a.id, a.type_approvi, a.date, a.qte, a.km_precedent, a.km,
+                a.vhc_provisoire, a.km_provisoire, a.observations,
+                v.police, v.marque, v.carburant,
+                b.nom as benificiaire_nom,
+                s.nom as service_nom
+            FROM approvisionnement a
+            JOIN dotation d ON a.dotation_id = d.id
+            JOIN vehicule v ON d.vehicule_id = v.id
+            JOIN benificiaire b ON d.benificiaire_id = b.id
+            JOIN service s ON b.service_id = s.id
+            WHERE a.dotation_id = %s
+            ORDER BY a.date DESC
+        """, (dotation_id,))
+        results = cur.fetchall()
+        return [dict(r) for r in results]
     
     # ADD THIS TO backend/app/api/approvisionnement.py
 

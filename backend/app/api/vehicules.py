@@ -146,7 +146,7 @@ async def get_vehicle_by_police(
     police: str,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get vehicle information by police number (Feature 2 - Provisoire validation)"""
+    """Get vehicle information by police number (Feature 2B)"""
     with get_db() as conn:
         cur = get_db_cursor(conn)
         cur.execute("""
