@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Calendar, Users, Fuel, FileText, AlertCircle, ChevronRight, ChevronDown, Search } from 'lucide-react';
+import { Plus, Calendar, Users, Fuel, FileText, AlertCircle, ChevronRight, ChevronDown, Search, FileSpreadsheet } from 'lucide-react';
 import { dotationService } from '../services/dotation';
 import { vehiculesService } from '../services/vehicules';
 import { benificiairesService } from '../services/vehicules';
 import { approvisionnementService } from '../services/approvisionnement';
+import { exportDotationsToExcel } from '../utils/excelExport';
 import { getUser } from '../services/auth';
 import Pagination from '../components/Pagination';
 import ReadOnlyBanner from '../components/ReadOnlyBanner';
@@ -32,31 +33,44 @@ export default function Dotation() {
   const isAdmin = user?.role === 'ADMIN';
   const queryClient = useQueryClient();
 
-  // Fetch dotations
+  // Fetch dotations - Get ALL for client-side search/pagination
   const { data: paginationData, isLoading } = useQuery({
-    queryKey: ['dotations', activeTab, page],
+    queryKey: ['dotations', activeTab],
     queryFn: () => dotationService.getAll({
-      page,
-      per_page: perPage,
+      page: 1,
+      per_page: 1000, // Get all dotations
       active_only: activeTab === 'active'
     })
   });
 
-  const currentData = paginationData?.items || [];
-  const totalPages = paginationData?.pages || 1;
-  const totalItems = paginationData?.total || 0;
+  const allData = paginationData?.items || [];
 
-  // Client-side search filter
-  const filteredData = currentData.filter(dotation => {
+  // Client-side search filter - searches ALL data
+  const filteredData = allData.filter(dotation => {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
       dotation.police?.toLowerCase().includes(search) ||
       dotation.marque?.toLowerCase().includes(search) ||
       dotation.benificiaire_nom?.toLowerCase().includes(search) ||
-      dotation.service_nom?.toLowerCase().includes(search)
+      dotation.service_nom?.toLowerCase().includes(search)||
+      dotation.direction?.toLowerCase().includes(search)
+
     );
   });
+
+  // Client-side pagination - paginate filtered results
+  const totalItems = filteredData.length;
+  const totalPages = Math.ceil(totalItems / perPage);
+  const startIndex = (page - 1) * perPage;
+  const endIndex = startIndex + perPage;
+  const currentData = filteredData.slice(startIndex, endIndex);
+
+  // Reset to page 1 when search changes
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+    setPage(1);
+  };
 
   // Fetch AVAILABLE vehicles for form (only those without active dotation)
   const { data: vehiclesData } = useQuery({
@@ -124,6 +138,21 @@ export default function Dotation() {
   const handleClose = (id) => {
     if (window.confirm('Êtes-vous sûr de vouloir clôturer cette dotation?')) {
       closeMutation.mutate(id);
+    }
+  };
+
+  const handleExportExcel = () => {
+    if (!filteredData || filteredData.length === 0) {
+      toast.error('Aucune donnée à exporter');
+      return;
+    }
+
+    try {
+      const filename = exportDotationsToExcel(filteredData);
+      toast.success(`Fichier Excel exporté: ${filename}`);
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Erreur lors de l\'export Excel');
     }
   };
 
@@ -328,27 +357,43 @@ export default function Dotation() {
         </div>
       )}
 
-      {/* Search Bar */}
-      <div className="card p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Rechercher par véhicule, bénéficiaire, service..."
-            className="input-field pl-10 w-full"
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm('')}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-      </div>
+      {/* Search Bar + Export Button */}
+<div className="card p-4 flex items-center gap-4">
+  
+  {/* Search */}
+  <div className="relative flex-1">
+    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+    <input
+      type="text"
+      value={searchTerm}
+      onChange={handleSearchChange}
+      placeholder="Rechercher par véhicule, bénéficiaire, service..."
+      className="input-field pl-10 w-full"
+    />
+    {searchTerm && (
+      <button
+        onClick={() => {
+          setSearchTerm('');
+          setPage(1);
+        }}
+        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+      >
+        ✕
+      </button>
+    )}
+  </div>
+
+  {/* Export Button */}
+  <button
+    onClick={handleExportExcel}
+    className="btn-secondary flex items-center gap-2 whitespace-nowrap"
+  >
+    <FileSpreadsheet className="h-5 w-5" />
+    Export Excel
+  </button>
+
+</div>
+
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
@@ -380,19 +425,50 @@ export default function Dotation() {
         >
           Archives
         </button>
+        
       </div>
-
+                {/* Stats Summary with Export Button */}
+      {filteredData && filteredData.length > 0 && (
+        <div className="flex items-start gap-4">
+          {/* Stats Cards */}
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="card p-4 bg-gradient-to-br from-blue-50 to-blue-100">
+              <p className="text-sm text-blue-600 mb-1">Total Dotations</p>
+              <p className="text-2xl font-bold text-blue-900">{filteredData.length}</p>
+            </div>
+            <div className="card p-4 bg-gradient-to-br from-green-50 to-green-100">
+              <p className="text-sm text-green-600 mb-1">QTE Mensuel Total</p>
+              <p className="text-2xl font-bold text-green-900">
+                {filteredData.reduce((sum, d) => sum + d.qte, 0)} L
+              </p>
+            </div>
+            <div className="card p-4 bg-gradient-to-br from-orange-50 to-orange-100">
+              <p className="text-sm text-orange-600 mb-1">Consommé</p>
+              <p className="text-2xl font-bold text-orange-900">
+                {filteredData.reduce((sum, d) => sum + d.qte_consomme, 0).toFixed(0)} L
+              </p>
+            </div>
+            <div className="card p-4 bg-gradient-to-br from-purple-50 to-purple-100">
+              <p className="text-sm text-purple-600 mb-1">Reste</p>
+              <p className="text-2xl font-bold text-purple-900">
+                {filteredData.reduce((sum, d) => sum + d.reste, 0).toFixed(0)} L
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Dotations Table */}
       <div className="card overflow-hidden">
-        {filteredData && filteredData.length > 0 ? (
+        {currentData && currentData.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-3 text-left table-header">Véhicule</th>
                   <th className="px-6 py-3 text-left table-header">Bénéficiaire</th>
+                  <th className="px-6 py-3 text-left table-header">Service</th>
                   <th className="px-6 py-3 text-left table-header">Période</th>
-                  <th className="px-6 py-3 text-left table-header">Quota</th>
+                  <th className="px-6 py-3 text-left table-header">Qte Mensuel</th>
                   <th className="px-6 py-3 text-left table-header">Consommé</th>
                   <th className="px-6 py-3 text-left table-header">Reste</th>
                   <th className="px-6 py-3 text-left table-header">Statut</th>
@@ -400,7 +476,7 @@ export default function Dotation() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredData.map((dotation) => (
+                {currentData.map((dotation) => (
                   <React.Fragment key={dotation.id}>
                     {/* Main Row */}
                     <tr 
@@ -423,6 +499,10 @@ export default function Dotation() {
                       <td className="px-6 py-4">
                         <p className="text-sm text-gray-900">{dotation.benificiaire_nom || dotation.benificiaire || 'N/A'}</p>
                         <p className="text-xs text-gray-600">{dotation.benificiaire_fonction || dotation.fonction || ''}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm text-gray-900">{dotation.direction || dotation.direction || 'N/A'}</p>
+                        <p className="text-xs text-gray-600">{dotation.service_nom || dotation.service_nom || ''}</p>
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-sm text-gray-900">
@@ -550,11 +630,24 @@ export default function Dotation() {
           <div className="p-12 text-center">
             <Fuel className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-600">
-              {activeTab === 'active'
-                ? 'Aucune dotation active pour le moment'
-                : 'Aucune dotation archivée'
+              {searchTerm
+                ? 'Aucun résultat trouvé pour votre recherche'
+                : activeTab === 'active'
+                  ? 'Aucune dotation active pour le moment'
+                  : 'Aucune dotation archivée'
               }
             </p>
+            {searchTerm && (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setPage(1);
+                }}
+                className="mt-3 text-sm text-primary-600 hover:text-primary-700"
+              >
+                Effacer la recherche
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -574,34 +667,6 @@ export default function Dotation() {
               perPage={perPage}
             />
           )}
-        </div>
-      )}
-
-      {/* Stats Summary */}
-      {filteredData && filteredData.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="card p-4 bg-gradient-to-br from-blue-50 to-blue-100">
-            <p className="text-sm text-blue-600 mb-1">Total Dotations</p>
-            <p className="text-2xl font-bold text-blue-900">{filteredData.length}</p>
-          </div>
-          <div className="card p-4 bg-gradient-to-br from-green-50 to-green-100">
-            <p className="text-sm text-green-600 mb-1">Quota Total</p>
-            <p className="text-2xl font-bold text-green-900">
-              {filteredData.reduce((sum, d) => sum + d.qte, 0)} L
-            </p>
-          </div>
-          <div className="card p-4 bg-gradient-to-br from-orange-50 to-orange-100">
-            <p className="text-sm text-orange-600 mb-1">Consommé</p>
-            <p className="text-2xl font-bold text-orange-900">
-              {filteredData.reduce((sum, d) => sum + d.qte_consomme, 0).toFixed(0)} L
-            </p>
-          </div>
-          <div className="card p-4 bg-gradient-to-br from-purple-50 to-purple-100">
-            <p className="text-sm text-purple-600 mb-1">Reste</p>
-            <p className="text-2xl font-bold text-purple-900">
-              {filteredData.reduce((sum, d) => sum + d.reste, 0).toFixed(0)} L
-            </p>
-          </div>
         </div>
       )}
     </div>
