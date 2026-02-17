@@ -380,36 +380,55 @@ CREATE TRIGGER trg_close_previous_dotation
 
 -- 6. TRIGGER: Auto-generate numero_bon if not provided
 CREATE OR REPLACE FUNCTION generate_numero_bon()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER AS
+$$
 DECLARE
-    v_prefix VARCHAR(5);
-    v_date VARCHAR(10);
-    v_sequence INTEGER;
+    v_dotation_numordre INT;
+    v_sequence INT;
 BEGIN
-    IF NEW.numero_bon IS NULL THEN
-        -- Set prefix based on type
-        IF NEW.type_approvi = 'DOTATION' THEN
-            v_prefix := 'DOT';
-        ELSE
-            v_prefix := 'MIS';
-        END IF;
-        
-        -- Format date
-        v_date := TO_CHAR(NEW.date, 'YYYYMMDD');
-        
-        -- Get sequence number for today
-        SELECT COUNT(*) + 1 INTO v_sequence
-        FROM approvisionnement
-        WHERE DATE(date) = DATE(NEW.date)
-          AND type_approvi = NEW.type_approvi;
-        
-        -- Generate numero_bon
-        NEW.numero_bon := v_prefix || '-' || v_date || '-' || LPAD(v_sequence::TEXT, 4, '0');
+
+    IF NEW.numero_bon IS NOT NULL THEN
+        RETURN NEW;
     END IF;
-    
+
+    ---------------------------------------------------
+    -- DOTATION CASE
+    ---------------------------------------------------
+    IF NEW.type_approvi = 'DOTATION' THEN
+
+        SELECT numordre
+        INTO v_dotation_numordre
+        FROM dotation
+        WHERE id = NEW.dotation_id;
+
+        -- Sequence ONLY within this dotation
+        SELECT COUNT(*) + 1
+        INTO v_sequence
+        FROM approvisionnement
+        WHERE dotation_id = NEW.dotation_id;
+
+        NEW.numero_bon :=
+            v_dotation_numordre || '/' || v_sequence;
+
+    ---------------------------------------------------
+    -- MISSION CASE
+    ---------------------------------------------------
+    ELSE
+
+        -- Global mission counter
+        SELECT COUNT(*) + 1
+        INTO v_sequence
+        FROM approvisionnement
+        WHERE type_approvi = 'MISSION';
+
+        NEW.numero_bon := v_sequence::TEXT;
+
+    END IF;
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
 
 CREATE TRIGGER trg_generate_numero_bon
     BEFORE INSERT ON approvisionnement

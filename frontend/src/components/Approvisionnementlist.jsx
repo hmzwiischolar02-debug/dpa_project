@@ -241,11 +241,10 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
                     <th className="px-6 py-3 text-left table-header">Service</th>
                     <th className="px-6 py-3 text-left table-header">Quantité</th>
                     <th className="px-6 py-3 text-left table-header">KM</th>
-                    <th className="px-6 py-3 text-left table-header">KM Parcouru</th>
                     {isAdmin && <th className="px-6 py-3 text-left table-header">Actions</th>}
                   </tr>
                 </thead>
-                <tbody className="divide-y font-semibold divide-gray-200">
+                <tbody className="divide-y divide-gray-200">
                   {currentData.map((item) => (
                     <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4">
@@ -264,17 +263,13 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
                           {item.police || item.police_vehicule || 'N/A'}
                         </p>
                         {item.vhc_provisoire && (
-                          <span className="text-xs font-semibold bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
+                          <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
                             Provisoire: {item.vhc_provisoire}
                           </span>
-                          
                         )}
-                        {item.vhc_provisoire_marque && (
-                                <p className="text-xs font-semibold text-gray-500">{item.vhc_provisoire_marque}</p>
-                              )}
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-sm font-semibold text-gray-900">
+                        <p className="text-sm text-gray-900">
                           {item.benificiaire_nom || item.matricule_conducteur || 'N/A'}
                         </p>
                       </td>
@@ -297,24 +292,20 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
                               <p className="text-xs text-yellow-600 flex items-center gap-1">
                                 <span>📍 KM Provisoire ({item.vhc_provisoire})</span>
                               </p>
-                              
+                              {item.vhc_provisoire_marque && (
+                                <p className="text-xs text-gray-500">{item.vhc_provisoire_marque}</p>
+                              )}
                             </>
                           ) : (
                             // Show normal km for regular vehicles
                             <>
                               <p className="text-gray-900">{item.km_precedent} → {item.km}</p>
-                              
+                              <p className="text-xs text-gray-600">
+                                +{item.km - item.km_precedent} km
+                              </p>
                             </>
                           )}
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        {item.vhc_provisoire ? (
-                          <p className="font-semibold text-gray-900">+{item.km_provisoire - item.vhc_provisoire_km_db} km</p>):(
-                          <p className="font-semibold text-gray-900">+{item.km - item.km_precedent} km</p>
-
-                        )}
-                        
                       </td>
                       {isAdmin && (
                         <td className="px-6 py-4">

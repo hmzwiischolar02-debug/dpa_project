@@ -2,16 +2,14 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search, Fuel, CheckCircle, AlertCircle, Plus, ArrowLeft } from 'lucide-react';
 import { approvisionnementService } from '../services/approvisionnement';
-import { vehiculesService } from '../services/vehicules';
-import ApprovisionnementList from '../components/Approvisionnementlist';
+import ApprovisionnementList from '../components/ApprovisionnementList';
 import toast from 'react-hot-toast';
-import { printDotationApprovisionnement } from '../utils/Printapprovisionnement';
+import { printApprovisionnementPDF } from '../utils/Printapprovisionnement';
 
 export default function Approvisionnement() {
   const [showForm, setShowForm] = useState(false);
   const [searchPolice, setSearchPolice] = useState('');
   const [vehicleData, setVehicleData] = useState(null);
-  const [provisoireVehicleData, setProvisoireVehicleData] = useState(null);
   const [formData, setFormData] = useState({
     qte: '',
     km: '',
@@ -41,7 +39,7 @@ export default function Approvisionnement() {
   // Create approvisionnement mutation
   const createMutation = useMutation({
     mutationFn: (data) => approvisionnementService.createDotation(data),
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success('Approvisionnement ajouté avec succès!');
       queryClient.invalidateQueries(['dashboard-stats']);
       
@@ -51,9 +49,11 @@ export default function Approvisionnement() {
         const newConsumed = (vehicleData.qte_consomme || 0) + parseFloat(formData.qte);
         const newRest = vehicleData.quota - newConsumed;
         
-        printDotationApprovisionnement(
-          {
+        printApprovisionnementPDF({
             date: new Date().toISOString(),
+            numero_bon: data?.numero_bon || null,
+            chef_fonction: vehicleData.fonction || '',
+            chef_nom: vehicleData.benificiaire || '',
             qte: parseFloat(formData.qte),
             km_precedent: vehicleData.km,
             km: parseInt(formData.km),
@@ -61,16 +61,19 @@ export default function Approvisionnement() {
             qte_consomme: newConsumed,
             reste: newRest,
             police: vehicleData.police,
+            nCivil: vehicleData.nCivil || '',
             marque: vehicleData.marque,
             carburant: vehicleData.carburant,
             benificiaire_nom: vehicleData.benificiaire,
             fonction: vehicleData.fonction,
             service_nom: vehicleData.service,
             direction: vehicleData.direction,
-            type_approvi:"DOTATION"
-          },
-          vehicleData
-        );
+            mois: new Date().getMonth() + 1,
+            annee: new Date().getFullYear(),
+            type_approvi: 'DOTATION',
+            observations: formData.observations || '',
+            vhc_provisoire: formData.vhc_provisoire || null
+        });
       }, 500);
       
       // Reset form
@@ -262,7 +265,7 @@ export default function Approvisionnement() {
             <form onSubmit={handleSearch} className="flex gap-3">
               <input
                 type="number"
-                maxlength="6"
+                maxLength={6}
                 max="400000"
                 value={searchPolice}
                 onChange={(e) => setSearchPolice(e.target.value)}
@@ -370,7 +373,7 @@ export default function Approvisionnement() {
                     </label>
                     <input
                       type="number"
-                      maxlength="6"
+                      maxLength={6}
                       max="999999"
                       value={formData.km}
                       onChange={(e) => setFormData({...formData, km: e.target.value})}
@@ -384,62 +387,31 @@ export default function Approvisionnement() {
                     </p>
                   </div>
 
-                  {/* Temporary Vehicle (optional) - with validation */}
+                  {/* Temporary Vehicle (optional) */}
                   <div>
                     <label className="label">
                       Véhicule provisoire (optionnel)
                     </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="number"
-                        maxlength="6"
-                        max="400000"
-                        value={formData.vhc_provisoire}
-                        onChange={(e) => {
-                          const newValue = e.target.value.toUpperCase();
-                          setFormData({
-                            ...formData, 
-                            vhc_provisoire: newValue,
-                            // Auto-set normal KM to km_precedent when provisoire is entered
-                            km: newValue ? vehicleData.km : (formData.km || vehicleData.km)
-                          });
-                          setProvisoireVehicleData(null); // Reset validation
-                        }}
-                        onBlur={async () => {
-                          // Search for provisoire vehicle when user finishes typing (Feature 2B)
-                          if (formData.vhc_provisoire && formData.vhc_provisoire.trim()) {
-                            try {
-                              const vehData = await vehiculesService.getByPolice(formData.vhc_provisoire.trim());
-                              setProvisoireVehicleData(vehData);
-                              toast.success(`✅ Véhicule provisoire trouvé: ${vehData.marque || 'N/A'}`);
-                            } catch (error) {
-                              setProvisoireVehicleData(null);
-                              toast.error('⚠️ Véhicule provisoire non trouvé dans la base de données');
-                            }
-                          }
-                        }}
-                        className="input-field flex-1"
-                        placeholder="Ex: 123456"
-                      />
-                      {provisoireVehicleData && (
-                        <span className="px-3 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4" />
-                          Trouvé
-                        </span>
-                      )}
-                    </div>
+                    <input
+                      type="number"
+                      maxLength={6}
+                      max="400000"
+                      value={formData.vhc_provisoire}
+                      onChange={(e) => {
+                        const newValue = e.target.value.toUpperCase();
+                        setFormData({
+                          ...formData, 
+                          vhc_provisoire: newValue,
+                          // Auto-set normal KM to km_precedent when provisoire is entered
+                          km: newValue ? vehicleData.km : (formData.km || vehicleData.km)
+                        });
+                      }}
+                      className="input-field"
+                      placeholder="Ex: 123456"
+                    />
                     <p className="text-xs text-gray-500 mt-1">
                       Si le véhicule principal n'est pas utilisé
                     </p>
-                    {provisoireVehicleData && (
-                      <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p className="text-sm text-gray-700">
-                          <span className="font-semibold">Marque:</span> {provisoireVehicleData.marque || 'N/A'} | 
-                          <span className="font-semibold ml-2">Carburant:</span> {provisoireVehicleData.carburant} | 
-                          <span className="font-semibold ml-2">KM actuel:</span> {provisoireVehicleData.km}
-                        </p>
-                      </div>
-                    )}
                   </div>
 
                   {/* Temporary Vehicle KM */}

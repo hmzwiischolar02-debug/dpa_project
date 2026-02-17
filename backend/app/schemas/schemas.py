@@ -29,6 +29,7 @@ class Service(BaseModel):
 
 # ============= Benificiaire Schemas =============
 class BenificiaireCreate(BaseModel):
+    matricule: str = None   # optional — auto-generated if empty
     nom: str
     fonction: str
     service_id: int
@@ -51,7 +52,6 @@ class VehiculeBase(BaseModel):
     class Config:
         populate_by_name = True
         from_attributes = True
-        by_alias = False
 
 class VehiculeCreate(VehiculeBase):
     pass
@@ -115,9 +115,9 @@ class ApprovisionnementDotationCreate(ApprovisionnementBase):
 
 class ApprovisionnementMissionCreate(ApprovisionnementBase):
     matricule_conducteur: str
-    service_externe: str
-    ville_origine: str
-    ordre_mission: str
+    service_affecte: str
+    destination: str
+    num_envoi: str
     police_vehicule: str
 
 class ApprovisionnementDetail(BaseModel):
@@ -149,9 +149,9 @@ class ApprovisionnementDetail(BaseModel):
     
     # For MISSION type
     matricule_conducteur: Optional[str]
-    service_externe: Optional[str]
-    ville_origine: Optional[str]
-    ordre_mission: Optional[str]
+    service_affecte: Optional[str]
+    destination: Optional[str]
+    num_envoi: Optional[str]
     police_vehicule: Optional[str]
     
     observations: Optional[str]

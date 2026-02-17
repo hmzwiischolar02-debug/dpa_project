@@ -2,10 +2,18 @@ import api from './api';
 
 export const approvisionnementService = {
   /**
-   * Search for vehicle by police number
+   * Search for vehicle by police number (DOTATION - requires active dotation)
    */
   async searchVehicle(police) {
     const response = await api.post('/approvisionnement/search', { police });
+    return response.data;
+  },
+
+  /**
+   * Search for vehicle by police number (MISSION - no dotation required)
+   */
+  async searchVehicleMission(police) {
+    const response = await api.post('/approvisionnement/search-mission', { police });
     return response.data;
   },
 
@@ -34,28 +42,27 @@ export const approvisionnementService = {
   /**
    * Get list of all approvisionnements
    */
-  async getList(page = 1, per_page = 5000, type_filter = null) {
+  async getList(page = 1, per_page = 1000, type_filter = null) {
     const params = { page, per_page };
-    if (type_filter) {
+    if (type_filter && type_filter !== 'all') {
       params.type_filter = type_filter;
     }
     const response = await api.get('/approvisionnement/list', { params });
-    // Return full response object for pagination data
     return response.data;
   },
 
   /**
    * Get DOTATION approvisionnements only
    */
-  async getDotationList(page = 1, per_page = 5000) {
-    return this.getList(page, per_page, 'DOTATION');
+  async getDotationList() {
+    return this.getList(1, 1000, 'DOTATION');
   },
 
   /**
    * Get MISSION approvisionnements only
    */
-  async getMissionList(page = 1, per_page = 5000) {
-    return this.getList(page, per_page, 'MISSION');
+  async getMissionList() {
+    return this.getList(1, 1000, 'MISSION');
   },
 
   /**

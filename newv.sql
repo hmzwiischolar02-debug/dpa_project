@@ -511,3 +511,181 @@ SELECT * FROM SERVICE;
 SELECT * FROM BENIFICIAIRE
 SELECT * FROM VEHICULE
 SELECT * FROM DOTATION
+
+
+
+-- Users Table
+CREATE TABLE users (
+    id_user SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'AGENT' CHECK (role IN ('ADMIN', 'AGENT')),
+    statut VARCHAR(20) DEFAULT 'ACTIF' CHECK (statut IN ('ACTIF', 'INACTIF'))
+);
+CREATE TABLE direction (
+    id SERIAL PRIMARY KEY,
+    nom TEXT NOT NULL,
+);
+
+-- Service Table
+CREATE TABLE service (
+    id SERIAL PRIMARY KEY,
+    nom TEXT NOT NULL,
+    direction TEXT NOT NULL,
+	direction_id INTEGER NOT NULL,
+	    FOREIGN KEY (direction_id) REFERENCES direction(id) ON DELETE RESTRICT
+);
+
+-- Beneficiaire Table
+CREATE TABLE benificiaire (
+    id SERIAL PRIMARY KEY,
+    matricule TEXT NOT NULL UNIQUE,
+    nom TEXT NOT NULL,
+    fonction TEXT NOT NULL,
+	n_order INTEGER,
+    service_id INTEGER NOT NULL,
+    FOREIGN KEY (service_id) REFERENCES service(id) ON DELETE RESTRICT
+);
+CREATE OR REPLACE FUNCTION set_n_order()
+RETURNS TRIGGER AS $$
+BEGIN
+    SELECT COUNT(*) + 1
+    INTO NEW.n_order
+    FROM benificiaire b
+    JOIN service s ON b.service_id = s.id
+    WHERE s.direction_id = (
+        SELECT direction_id
+        FROM service
+        WHERE id = NEW.service_id
+    );
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_set_n_order
+BEFORE INSERT ON benificiaire
+FOR EACH ROW
+EXECUTE FUNCTION set_n_order();
+
+-- Vehicule Table
+CREATE TABLE vehicule (
+    id SERIAL PRIMARY KEY,
+    police VARCHAR(20) NOT NULL UNIQUE,
+    nCivil VARCHAR(30) NOT NULL UNIQUE,
+    marque VARCHAR(50),
+    carburant VARCHAR(20) NOT NULL CHECK (carburant IN ('gazoil', 'essence')),
+    km INTEGER NOT NULL CHECK (km >= 0),
+    actif BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE dotation (
+    id SERIAL PRIMARY KEY,
+    vehicule_id INTEGER NOT NULL,
+    benificiaire_id INTEGER NOT NULL,
+    mois INTEGER NOT NULL CHECK (mois BETWEEN 1 AND 12),
+    annee INTEGER NOT NULL CHECK (annee >= 2020),
+    qte INTEGER NOT NULL CHECK (qte IN (120, 140)),
+    qte_consomme NUMERIC(6,2) DEFAULT 0 CHECK (qte_consomme >= 0),
+    reste NUMERIC(6,2) GENERATED ALWAYS AS (qte - qte_consomme) STORED,
+    cloture BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (vehicule_id, mois, annee),
+    FOREIGN KEY (benificiaire_id) REFERENCES benificiaire(id) ON DELETE RESTRICT,
+    FOREIGN KEY (vehicule_id) REFERENCES vehicule(id) ON DELETE CASCADE
+);
+
+INSERT INTO dotation (vehicule_id, benificiaire_id, mois, annee, qte) VALUES
+(1, 1, EXTRACT(MONTH FROM CURRENT_DATE)::INTEGER, EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER, 120),
+(2, 2, EXTRACT(MONTH FROM CURRENT_DATE)::INTEGER, EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER, 140),
+(3, 3, EXTRACT(MONTH FROM CURRENT_DATE)::INTEGER, EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER, 120);
+
+
+CREATE TABLE approvisionnement (
+    id SERIAL PRIMARY KEY,
+    type_approvi VARCHAR(20) NOT NULL CHECK (type_approvi IN ('DOTATION', 'MISSION')),
+    date TIMESTAMP NOT NULL DEFAULT NOW(),
+    qte NUMERIC(6,2) NOT NULL CHECK (qte > 0),
+    km_precedent INTEGER NOT NULL,
+    km INTEGER NOT NULL CHECK (km > km_precedent),
+    anomalie BOOLEAN DEFAULT FALSE,
+    -- DOTATION specific fields
+    dotation_id INT NULL,
+    -- Temporary vehicle fields (optional - for DOTATION when using different vehicle)
+    vhc_provisoire VARCHAR(50) NULL,  -- Temporary vehicle identifier (police number)
+    km_provisoire INTEGER NULL CHECK (km_provisoire >= 0),  -- Km of temporary vehicle
+    -- MISSION specific fields
+    matricule_conducteur VARCHAR(50) NULL,
+    service_externe VARCHAR(100) NULL,
+    ville_origine VARCHAR(100) NULL,
+    ordre_mission VARCHAR(100) NULL,
+    police_vehicule VARCHAR(50) NULL,  -- Vehicle police number for MISSION 
+    -- Common fields
+    observations TEXT,
+    numero_bon VARCHAR(50) UNIQUE,    
+    -- Constraints
+    CONSTRAINT chk_dotation_fields CHECK (
+        (type_approvi = 'DOTATION' AND dotation_id IS NOT NULL AND ordre_mission IS NULL) OR
+        (type_approvi = 'MISSION' AND ordre_mission IS NOT NULL AND dotation_id IS NULL)
+    ),
+    FOREIGN KEY (dotation_id) REFERENCES dotation(id) ON DELETE RESTRICT
+);
+
+
+
+
+CREATE OR REPLACE FUNCTION generate_numero_bon()
+RETURNS TRIGGER AS
+$$
+DECLARE
+    v_direction_id INT;
+    v_norder INT;
+    v_mois INT;
+    v_annee INT;
+    v_count INT;
+BEGIN
+
+    -- Only generate for DOTATION
+    IF NEW.type_approvi <> 'DOTATION' THEN
+        RETURN NEW;
+    END IF;
+
+    -- Fetch needed data
+    SELECT
+        s.direction_id,
+        b.n_order,
+        d.mois,
+        d.annee
+    INTO
+        v_direction_id,
+        v_norder,
+        v_mois,
+        v_annee
+    FROM dotation d
+    JOIN benificiaire b ON b.id = d.benificiaire_id
+    JOIN service s ON s.id = b.service_id
+    WHERE d.id = NEW.dotation_id;
+
+    -- Count existing approvisionnements for this dotation
+    SELECT COUNT(*) + 1
+    INTO v_count
+    FROM approvisionnement
+    WHERE dotation_id = NEW.dotation_id;
+
+    -- Build numero_bon
+    NEW.numero_bon :=
+        v_direction_id || '_' ||
+        v_norder || '_' ||
+        v_mois || '_' ||
+        v_annee || '_' ||
+        v_count;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_generate_numero_bon
+BEFORE INSERT ON approvisionnement
+FOR EACH ROW
+EXECUTE FUNCTION generate_numero_bon();
