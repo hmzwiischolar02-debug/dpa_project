@@ -64,18 +64,14 @@ export const printApprovisionnementPDF = (appro) => {
   const km         = String(appro.km || 0);
   const service    = appro.direction || appro.service_nom || '';
 
-  const benNom = (appro.benificiaire_nom || appro.matricule_conducteur || '').toUpperCase();
-
   const chefFonction = (appro.chef_fonction || appro.benificiaire_fonction || 'CHEF DE SERVICE').toUpperCase();
   const chefNom      = (appro.chef_nom || appro.benificiaire_nom || '').toUpperCase();
 
   // ── LAYOUT CONSTANTS ──────────────────────────────────────────
-  // Header: 7 lines × 4.5mm + N° block ≈ 46mm → sep at ~68mm
   const HEADER_Y  = 14;   // header block top
   const SEP_Y     = 60;   // separator right after header zone
-  const TITLE_Y   = 70;   // "DOTATION MOIS …"  (~16mm below sep)
-  const QTE_Y     = 85;   // quantity line       (~15mm below title)
-  const FOOTER_Y  = 99;  // footer separator    (~21mm below qty)
+  const TITLE_Y   = 70;   // "DOTATION MOIS …" or "BON DE CARBURANT - MISSION"
+  const QTE_Y     = 80;   // quantity line
 
   // ──────────────────────────────────────────────────────────────
   // TOP-LEFT: Official header block
@@ -161,62 +157,89 @@ export const printApprovisionnementPDF = (appro) => {
 
   // ──────────────────────────────────────────────────────────────
   // QTE LINE: "DOUZE....(12).. LITRES DE ESSENCE./"
-  // No leading dots — word comes first
   // ──────────────────────────────────────────────────────────────
   const qteLine = `${qteWords}....(${qteDisplay}).. LITRES DE ${carburant}./`;
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.text(qteLine, PW/2, QTE_Y, { align: 'center' });
 
-  // Mission extra fields
+  // ──────────────────────────────────────────────────────────────
+  // MISSION extra fields + Observations (dynamic Y tracking)
+  // ──────────────────────────────────────────────────────────────
+  let currentY = QTE_Y + 14;  // track current Y position after quantity line
+
   if (appro.type_approvi === 'MISSION') {
+    const benNom = (appro.benificiaire_nom || appro.matricule_conducteur || '').toUpperCase();
+
+    // Left column: mission details
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    const benNom = (appro.benificiaire_nom || appro.matricule_conducteur || '').toUpperCase();
-    let my = QTE_Y + 12;
-    if (benNom)               { doc.text(`Conducteur: ${benNom}`, ML, my); my += 7; }
-    if (appro.num_envoi)      { doc.text(`N° Ordre de mission: ${appro.num_envoi}`, ML, my); my += 7; }
-    if (appro.service_affecte){ doc.text(`Service affecté: ${appro.service_affecte}`, ML, my); my += 7; }
-    if (appro.destination)    { doc.text(`Destination: ${appro.destination}`, ML, my); }
-  }
 
-  if (appro.observations) {
-    doc.setFontSize(8.5);
-    doc.setFont('helvetica', 'italic');
-    const obsLines = doc.splitTextToSize(`Observations: ${appro.observations}`, 170);
-    doc.text(obsLines, PW/2, QTE_Y + 14, { align: 'center' });
+    if (benNom) {
+      doc.text(`Conducteur: ${benNom}`, ML, currentY);
+      currentY += 6;
+    }
+    if (appro.num_envoi) {
+      doc.text(`N° D'envoi : ${appro.num_envoi}`, ML, currentY);
+      currentY += 6;
+    }
+    if (appro.service_affecte) {
+      doc.text(`Service affecté: ${appro.service_affecte}`, ML, currentY);
+      currentY += 6;
+    }
+    if (appro.destination) {
+      doc.text(`Destination: ${appro.destination}`, ML, currentY);
+      currentY += 6;
+    }
+
+    // Observations on the RIGHT side (aligned with mission details top)
+    if (appro.observations) {
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'italic');
+      const obsX = 110;  // right column start
+      const obsMaxWidth = MR - obsX;
+      const obsLines = doc.splitTextToSize(`Observations: ${appro.observations}`, obsMaxWidth);
+      // Place observations starting at the same Y as the first mission field
+      doc.text(obsLines, obsX, QTE_Y + 14);
+      // Update currentY if observations extend further down than mission fields
+      const obsEndY = QTE_Y + 14 + (obsLines.length * 5);
+      if (obsEndY > currentY) {
+        currentY = obsEndY;
+      }
+    }
+  } else {
+    // DOTATION: observations centered below quantity
+    if (appro.observations) {
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'italic');
+      const obsLines = doc.splitTextToSize(`Observations: ${appro.observations}`, 170);
+      doc.text(obsLines, PW/2, currentY, { align: 'center' });
+      currentY += obsLines.length * 5;
+    }
   }
 
   // ──────────────────────────────────────────────────────────────
-  // FOOTER separator (at half-page = 148 mm)
+  // FOOTER: Dynamic Y based on content above
+  // Ensure minimum spacing after content
   // ──────────────────────────────────────────────────────────────
-
-
-  // FOOTER:
-  //  LEFT                               RIGHT (RIGHT_X)
-  //  ─────────────────────────────────  ────────────────────────────────────
-  //  [chefFonction small normal]
-  //  MR. [chefNom bold]
-  //
-  //  LE CHEF DE SERVICE (underlined)    VISA DU CHEF DE LA DIVISION (underlined)
-  //  CARBURANT ET LUBRIFIANTS P./       DU PARC-AUTO (underlined)
-  //   ↑ same row as VISA                 ↑ same row as CARBURANT
+  const FOOTER_Y = Math.max(currentY + 10, 115);  // at least 10mm gap, minimum at 115mm
 
   const RIGHT_X = 115;
 
-  const TOP_Y = FOOTER_Y + 7;   // chef fonction label  (left only)
-  const NOM_Y = FOOTER_Y + 14;  // MR. nom              (left only)
-  const SIG_Y = FOOTER_Y + 24;  // LE CHEF DE SERVICE  /  VISA DU CHEF DE LA DIVISION
-  const BOT_Y = FOOTER_Y + 29;  // CARBURANT ...        /  DU PARC-AUTO
+  const TOP_Y = FOOTER_Y-5 ;   // chef fonction label  (left only)
+  const NOM_Y = FOOTER_Y ;  // MR. nom              (left only)
+  const SIG_Y = FOOTER_Y + 10;  // LE CHEF DE SERVICE  /  VISA DU CHEF DE LA DIVISION
+  const BOT_Y = FOOTER_Y + 15;  // CARBURANT ...        /  DU PARC-AUTO
 
   // ── LEFT top: chef info ──────────────────────────────────────
+  if (appro.type_approvi === 'DOTATION') {
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.text(chefFonction, ML, TOP_Y);
   doc.setFont('helvetica', 'bold');
-  if (chefNom) doc.text(`MR. ${chefNom}`, ML, NOM_Y);
+  if (chefNom) doc.text(`MR. ${chefNom}`, ML, NOM_Y);}
 
-   // ── LEFT SIG_Y: LE CHEF DE SERVICE (underlined) ──────────────
+  // ── LEFT SIG_Y: LE CHEF DE SERVICE (underlined) ──────────────
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
   const leftSig = 'LE CHEF DE SERVICE';
@@ -227,9 +250,9 @@ export const printApprovisionnementPDF = (appro) => {
   // ── LEFT BOT_Y: CARBURANT ET LUBRIFIANTS P./ ─────────────────
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
-  const leftSigb='CARBURANT ET LUBRIFIANTS P./';
+  const leftSigb = 'CARBURANT ET LUBRIFIANTS P./';
   doc.text(leftSigb, ML, BOT_Y);
-   doc.setLineWidth(0.4);
+  doc.setLineWidth(0.4);
   doc.line(ML, BOT_Y + 1.5, ML + doc.getTextWidth(leftSigb), BOT_Y + 1.5);
 
   // ── RIGHT SIG_Y: VISA DU CHEF DE LA DIVISION (underlined) ────

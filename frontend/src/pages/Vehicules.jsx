@@ -11,10 +11,10 @@ export default function Vehicules() {
   const [showForm, setShowForm] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState(null);
   
-  // CLIENT-SIDE PAGINATION (like Approvisionnement)
+  // CLIENT-SIDE PAGINATION
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
-  const itemsPerPage = 10;
+  const itemsPerPage = 20;  // 20 rows per page
   
   const [formData, setFormData] = useState({
     police: '',
@@ -78,16 +78,23 @@ export default function Vehicules() {
     setEditingVehicle(vehicle);
     setFormData({
       police: vehicle.police,
-      nCivil: vehicle.ncivil,
-      marque: vehicle.marque,
+      nCivil: vehicle.ncivil || vehicle.nCivil || '',  // handle both cases
+      marque: vehicle.marque || '',
       carburant: vehicle.carburant,
-      km: vehicle.km
+      km: vehicle.km || 0
     });
     setShowForm(true);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Validation
+    if (!formData.police || !formData.nCivil || !formData.carburant) {
+      toast.error('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+    
     saveMutation.mutate(formData);
   };
 
@@ -103,6 +110,7 @@ export default function Vehicules() {
     const matchesSearch = searchTerm === '' || 
       item.police?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.ncivil?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.nCivil?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.marque?.toLowerCase().includes(searchTerm.toLowerCase());
     
     // Fuel filter
@@ -167,7 +175,7 @@ export default function Vehicules() {
                 <label className="label">Police <span className="text-red-500">*</span></label>
                 <input
                   type="text"
-                  maxlength="6"
+                  maxLength="6"
                   value={formData.police}
                   onChange={(e) => setFormData({...formData, police: e.target.value.toUpperCase()})}
                   className="input-field"
@@ -189,14 +197,13 @@ export default function Vehicules() {
               </div>
 
               <div>
-                <label className="label">Marque <span className="text-red-500">*</span></label>
+                <label className="label">Marque</label>
                 <input
                   type="text"
                   value={formData.marque}
                   onChange={(e) => setFormData({...formData, marque: e.target.value})}
                   className="input-field"
                   placeholder="Ex: DACIA DOKKER"
-                  required
                 />
               </div>
 
@@ -214,14 +221,14 @@ export default function Vehicules() {
               </div>
 
               <div className="md:col-span-2">
-                <label className="label">Kilométrage <span className="text-red-500">*</span></label>
+                <label className="label">Kilométrage</label>
                 <input
                   type="number"
+                  min="0"
                   value={formData.km}
-                  onChange={(e) => setFormData({...formData, km: e.target.value})}
+                  onChange={(e) => setFormData({...formData, km: parseInt(e.target.value) || 0})}
                   className="input-field"
                   placeholder="Ex: 31500"
-                  required
                 />
               </div>
             </div>
@@ -270,7 +277,7 @@ export default function Vehicules() {
               className="input-field flex-1"
             >
               <option value="all">Tous les carburants</option>
-              <option value="gazoil">Gazoil</option>
+              <option value="gasoil">Gasoil</option>
               <option value="essence">Essence</option>
             </select>
           </div>
@@ -305,10 +312,10 @@ export default function Vehicules() {
                         <p className="font-medium text-gray-900">{vehicle.police}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-sm text-gray-900">{vehicle.ncivil}</p>
+                        <p className="text-sm text-gray-900">{vehicle.ncivil || vehicle.nCivil || 'N/A'}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-sm text-gray-900">{vehicle.marque}</p>
+                        <p className="text-sm text-gray-900">{vehicle.marque || 'N/A'}</p>
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -320,7 +327,7 @@ export default function Vehicules() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-sm text-gray-900">{vehicle.km.toLocaleString()} km</p>
+                        <p className="text-sm text-gray-900">{(vehicle.km || 0).toLocaleString()} km</p>
                       </td>
                       {isAdmin && (
                         <td className="px-6 py-4 text-right">
@@ -366,19 +373,70 @@ export default function Vehicules() {
                     </button>
 
                     <div className="flex items-center gap-1">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                        <button
-                          key={page}
-                          onClick={() => setCurrentPage(page)}
-                          className={`px-3 py-1 rounded-lg ${
-                            currentPage === page
-                              ? 'bg-primary-600 text-white'
-                              : 'hover:bg-gray-100 text-gray-700'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      ))}
+                      {/* Smart pagination: show max 7 buttons */}
+                      {(() => {
+                        const maxButtons = 7;
+                        let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+                        let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+                        
+                        // Adjust if we're near the end
+                        if (endPage - startPage + 1 < maxButtons) {
+                          startPage = Math.max(1, endPage - maxButtons + 1);
+                        }
+                        
+                        const pages = [];
+                        
+                        // First page + ellipsis
+                        if (startPage > 1) {
+                          pages.push(
+                            <button
+                              key={1}
+                              onClick={() => setCurrentPage(1)}
+                              className="px-3 py-1 rounded-lg hover:bg-gray-100 text-gray-700"
+                            >
+                              1
+                            </button>
+                          );
+                          if (startPage > 2) {
+                            pages.push(<span key="ellipsis1" className="px-2 text-gray-500">...</span>);
+                          }
+                        }
+                        
+                        // Main page range
+                        for (let i = startPage; i <= endPage; i++) {
+                          pages.push(
+                            <button
+                              key={i}
+                              onClick={() => setCurrentPage(i)}
+                              className={`px-3 py-1 rounded-lg ${
+                                currentPage === i
+                                  ? 'bg-primary-600 text-white'
+                                  : 'hover:bg-gray-100 text-gray-700'
+                              }`}
+                            >
+                              {i}
+                            </button>
+                          );
+                        }
+                        
+                        // Ellipsis + last page
+                        if (endPage < totalPages) {
+                          if (endPage < totalPages - 1) {
+                            pages.push(<span key="ellipsis2" className="px-2 text-gray-500">...</span>);
+                          }
+                          pages.push(
+                            <button
+                              key={totalPages}
+                              onClick={() => setCurrentPage(totalPages)}
+                              className="px-3 py-1 rounded-lg hover:bg-gray-100 text-gray-700"
+                            >
+                              {totalPages}
+                            </button>
+                          );
+                        }
+                        
+                        return pages;
+                      })()}
                     </div>
 
                     <button
