@@ -9,12 +9,14 @@ import { exportDotationsToExcel } from '../utils/excelExport';
 import { getUser } from '../services/auth';
 import Pagination from '../components/Pagination';
 import ReadOnlyBanner from '../components/ReadOnlyBanner';
+import ExcelImportModal from '../components/ExcelImportModal';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import React from 'react';
 
 export default function Dotation() {
   const [showForm, setShowForm] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);  // État pour le modal d'import
   const [activeTab, setActiveTab] = useState('active');
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
@@ -198,13 +200,22 @@ export default function Dotation() {
         </div>
         
         {isAdmin && (
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Plus className="h-5 w-5" />
-            Nouvelle dotation
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <FileSpreadsheet className="h-5 w-5" />
+              📤 Importer Excel
+            </button>
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Plus className="h-5 w-5" />
+              Nouvelle dotation
+            </button>
+          </div>
         )}
       </div>
 
@@ -358,42 +369,40 @@ export default function Dotation() {
       )}
 
       {/* Search Bar + Export Button */}
-<div className="card p-4 flex items-center gap-4">
-  
-  {/* Search */}
-  <div className="relative flex-1">
-    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-    <input
-      type="text"
-      value={searchTerm}
-      onChange={handleSearchChange}
-      placeholder="Rechercher par véhicule, bénéficiaire, service..."
-      className="input-field pl-10 w-full"
-    />
-    {searchTerm && (
-      <button
-        onClick={() => {
-          setSearchTerm('');
-          setPage(1);
-        }}
-        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-      >
-        ✕
-      </button>
-    )}
-  </div>
+      <div className="card p-4 flex items-center gap-4">
+        
+        {/* Search */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={handleSearchChange}
+            placeholder="Rechercher par véhicule, bénéficiaire, service..."
+            className="input-field pl-10 w-full"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setPage(1);
+              }}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              ✕
+            </button>
+          )}
+        </div>
 
-  {/* Export Button */}
-  <button
-    onClick={handleExportExcel}
-    className="btn-secondary flex items-center gap-2 whitespace-nowrap"
-  >
-    <FileSpreadsheet className="h-5 w-5" />
-    Export Excel
-  </button>
-
-</div>
-
+        {/* Export Button */}
+        <button
+          onClick={handleExportExcel}
+          className="btn-secondary flex items-center gap-2 whitespace-nowrap"
+        >
+          <FileSpreadsheet className="h-5 w-5" />
+          Export Excel
+        </button>
+      </div>
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200">
@@ -425,9 +434,9 @@ export default function Dotation() {
         >
           Archives
         </button>
-        
       </div>
-                {/* Stats Summary with Export Button */}
+
+      {/* Stats Summary */}
       {filteredData && filteredData.length > 0 && (
         <div className="flex items-start gap-4">
           {/* Stats Cards */}
@@ -457,6 +466,7 @@ export default function Dotation() {
           </div>
         </div>
       )}
+
       {/* Dotations Table */}
       <div className="card overflow-hidden">
         {currentData && currentData.length > 0 ? (
@@ -543,10 +553,10 @@ export default function Dotation() {
                       )}
                     </tr>
 
-                    {/* Expanded Row - Approvisionnements List (Feature 1) */}
+                    {/* Expanded Row - Approvisionnements List */}
                     {expandedDotation === dotation.id && (
                       <tr>
-                        <td colSpan={isAdmin ? 8 : 7} className="px-6 py-4 bg-gray-50">
+                        <td colSpan={isAdmin ? 9 : 8} className="px-6 py-4 bg-gray-50">
                           <div className="pl-8">
                             <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                               <FileText className="h-5 w-5 text-primary-600" />
@@ -669,6 +679,17 @@ export default function Dotation() {
           )}
         </div>
       )}
+
+      {/* Excel Import Modal */}
+      <ExcelImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={() => {
+          queryClient.invalidateQueries(['dotations']);
+          queryClient.invalidateQueries(['dashboard-stats']);
+          setShowImportModal(false);
+        }}
+      />
     </div>
   );
 }

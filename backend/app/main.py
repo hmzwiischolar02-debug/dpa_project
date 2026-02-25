@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api import auth, approvisionnement, dotation, stats, vehicules, services, benificiaires
+from app.api import auth, approvisionnement, dotation, stats, vehicules, services, benificiaires, dotation_import
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -22,6 +22,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api")
 app.include_router(approvisionnement.router, prefix="/api")
 app.include_router(dotation.router, prefix="/api")
+app.include_router(dotation_import.router, prefix="/api")  # Excel import
 app.include_router(stats.router, prefix="/api")
 app.include_router(vehicules.router, prefix="/api")
 app.include_router(services.router, prefix="/api")

@@ -85,7 +85,7 @@ CREATE TABLE dotation (
     benificiaire_id INTEGER NOT NULL,
     mois INTEGER NOT NULL CHECK (mois BETWEEN 1 AND 12),
     annee INTEGER NOT NULL CHECK (annee >= 2020),
-    qte INTEGER NOT NULL CHECK (qte IN (120, 140)),
+    qte INTEGER NOT NULL,
     qte_consomme NUMERIC(6,2) DEFAULT 0 CHECK (qte_consomme >= 0),
     reste NUMERIC(6,2) GENERATED ALWAYS AS (qte - qte_consomme) STORED,
     cloture BOOLEAN DEFAULT FALSE,
@@ -95,29 +95,50 @@ CREATE TABLE dotation (
     FOREIGN KEY (benificiaire_id) REFERENCES benificiaire(id) ON DELETE RESTRICT,
     FOREIGN KEY (vehicule_id) REFERENCES vehicule(id) ON DELETE CASCADE
 );
+-- Supprimer l'ancien
+DROP TRIGGER IF EXISTS trg_set_numordre_dotation ON dotation;
+DROP FUNCTION IF EXISTS set_numordre_dotation();
+
+-- Créer le NOUVEAU (corrigé)
 CREATE OR REPLACE FUNCTION set_numordre_dotation()
 RETURNS TRIGGER AS
 $$
 DECLARE
-    v_numordre_benef INT;
+    v_numordre INT;
+    v_direction VARCHAR(100);
 BEGIN
-    -- Get NumOrdre from benificiaire
-    SELECT numordre
-    INTO v_numordre_benef
-    FROM benificiaire
-    WHERE id = NEW.benificiaire_id;
-
-    -- Calculate value
-    NEW.numordre := v_numordre_benef * NEW.mois;
-
+    -- 1. Récupérer la direction (utilise NEW.benificiaire_id, pas NEW.id)
+    SELECT s.direction 
+    INTO v_direction
+    FROM benificiaire b
+    JOIN service s ON b.service_id = s.id
+    WHERE b.id = NEW.benificiaire_id;
+    
+    -- 2. Trouver le max (COALESCE pour gérer NULL)
+    SELECT COALESCE(MAX(d.numordre), 0)  -- ← 0 au lieu de NULL
+    INTO v_numordre
+    FROM dotation d
+    JOIN benificiaire b ON d.benificiaire_id = b.id
+    JOIN service s ON b.service_id = s.id
+    WHERE s.direction = v_direction;
+    
+    -- 3. Incrémenter
+    NEW.numordre := v_numordre + 1;
+    
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
 CREATE TRIGGER trg_set_numordre_dotation
 BEFORE INSERT OR UPDATE
 ON dotation
 FOR EACH ROW
 EXECUTE FUNCTION set_numordre_dotation();
+
+select * from dotation
+select MAX(d.numordre) from dotation d,benificiaire b,service s where d.benificiaire_id=b.id and b.service_id=s.id and s.direction='DRH' and d.id=3
+select s.direction from dotation d,benificiaire b,service s where d.benificiaire_id=b.id and b.service_id=s.id and d.id=3
+select MAX(b.n_order) from benificiaire b , service s where b.service_id=s.id and s.direction = 'DEB'
 -- Approvisionnement Table
 CREATE TABLE approvisionnement (
     id SERIAL PRIMARY KEY,
@@ -279,7 +300,7 @@ WHERE d.mois = EXTRACT(MONTH FROM CURRENT_DATE)
   AND d.annee = EXTRACT(YEAR FROM CURRENT_DATE)
 ORDER BY d.cloture, d.reste;
 
-
+select * from dotation
 -- ============================================================================
 -- TRIGGER FUNCTIONS
 -- ============================================================================
@@ -493,6 +514,9 @@ CREATE TRIGGER trg_generate_numero_bon
 -- Insert sample users
 INSERT INTO users (username, password, role) VALUES
 ('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ADMIN'), -- password: password
+('agent1', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'AGENT');
+INSERT INTO users (username, password, role) VALUES
+('admin1', 'admin123', 'ADMIN'); -- password: password
 ('agent1', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'AGENT');
 
 INSERT INTO service (nom, direction) VALUES
