@@ -34,6 +34,7 @@ CREATE TABLE service (
     direction TEXT NOT NULL
 );
 
+
 -- Beneficiaire Table
 CREATE TABLE benificiaire (
     id SERIAL PRIMARY KEY,
@@ -41,9 +42,39 @@ CREATE TABLE benificiaire (
     nom TEXT NOT NULL,
     fonction TEXT NOT NULL,
     service_id INTEGER NOT NULL,
+    n_order INTEGER,
     FOREIGN KEY (service_id) REFERENCES service(id) ON DELETE RESTRICT
 );
+CREATE OR REPLACE FUNCTION set_n_order_benificiaire()
+RETURNS TRIGGER AS
+$$
+DECLARE
+    v_direction TEXT;
+    v_next_order INTEGER;
+BEGIN
+    -- Get direction of the service linked to the new beneficiary
+    SELECT direction
+    INTO v_direction
+    FROM service
+    WHERE id = NEW.service_id;
 
+    -- Count existing beneficiaries in the same direction
+    SELECT COUNT(*) + 1
+    INTO v_next_order
+    FROM benificiaire b
+    JOIN service s ON s.id = b.service_id
+    WHERE s.direction = v_direction;
+
+    -- Assign value
+    NEW.n_order := v_next_order;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER trg_set_n_order
+BEFORE INSERT ON benificiaire
+FOR EACH ROW
+EXECUTE FUNCTION set_n_order_benificiaire();
 -- Vehicule Table
 CREATE TABLE vehicule (
     id SERIAL PRIMARY KEY,
@@ -68,11 +99,34 @@ CREATE TABLE dotation (
     reste NUMERIC(6,2) GENERATED ALWAYS AS (qte - qte_consomme) STORED,
     cloture BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    numordre INTEGER,
     UNIQUE (vehicule_id, mois, annee),
     FOREIGN KEY (benificiaire_id) REFERENCES benificiaire(id) ON DELETE RESTRICT,
     FOREIGN KEY (vehicule_id) REFERENCES vehicule(id) ON DELETE CASCADE
 );
+CREATE OR REPLACE FUNCTION set_numordre_dotation()
+RETURNS TRIGGER AS
+$$
+DECLARE
+    v_numordre_benef INT;
+BEGIN
+    -- Get NumOrdre from benificiaire
+    SELECT numordre
+    INTO v_numordre_benef
+    FROM benificiaire
+    WHERE id = NEW.benificiaire_id;
 
+    -- Calculate value
+    NEW.numordre := v_numordre_benef * NEW.mois;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER trg_set_numordre_dotation
+BEFORE INSERT OR UPDATE
+ON dotation
+FOR EACH ROW
+EXECUTE FUNCTION set_numordre_dotation();
 -- Approvisionnement Table
 CREATE TABLE approvisionnement (
     id SERIAL PRIMARY KEY,
@@ -292,30 +346,40 @@ CREATE TRIGGER trg_check_close_dotation
     EXECUTE FUNCTION check_and_close_dotation();
 
 -- 3. TRIGGER: Update vehicle kilometrage after approvisionnement (only for main vehicle)
-CREATE OR REPLACE FUNCTION update_vehicule_km()
+CREATE OR REPLACE FUNCTION update_vehicle_km()
 RETURNS TRIGGER AS $$
 BEGIN
     IF NEW.type_approvi = 'DOTATION' THEN
-        -- Only update vehicle km if NOT using temporary vehicle
+        -- Update KM via dotation_id → vehicule_id
+        -- Only if no provisoire vehicle (provisoire doesn't update main vehicle KM)
         IF NEW.vhc_provisoire IS NULL THEN
-            UPDATE vehicule v
+            UPDATE vehicule
             SET km = NEW.km
-            FROM dotation d
-            WHERE d.id = NEW.dotation_id
-              AND v.id = d.vehicule_id
-              AND NEW.km > v.km;
+            WHERE id = (
+                SELECT vehicule_id
+                FROM dotation
+                WHERE id = NEW.dotation_id
+            )
+            AND NEW.km > km;  -- Only update if new KM is higher
         END IF;
-        -- If vhc_provisoire is set, we don't update the main vehicle's km
+
+    ELSIF NEW.type_approvi = 'MISSION' THEN
+        -- Update KM via police_vehicule
+        UPDATE vehicule
+        SET km = NEW.km
+        WHERE police = NEW.police_vehicule
+        AND NEW.km > km;  -- Only update if new KM is higher
     END IF;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_update_vehicule_km
-    AFTER INSERT ON approvisionnement
-    FOR EACH ROW
-    EXECUTE FUNCTION update_vehicule_km();
+-- Recreate the trigger
+CREATE TRIGGER trg_update_km_after_appro
+AFTER INSERT ON approvisionnement
+FOR EACH ROW
+EXECUTE FUNCTION update_vehicle_km();
 
 -- 4. TRIGGER: Deny approvisionnement if dotation is closed
 CREATE OR REPLACE FUNCTION check_dotation_status()
@@ -995,6 +1059,55 @@ INSERT INTO benificiaire (nom, fonction, service_id) VALUES
 ('CONVOYEUR PP LAAYOUNE N° 1', 'CONVOYEUR PP LAAYOUNE (1)', 91),
 ('MR IMAD BENABDELOUHAD', 'DISP.FMSN', 90),
 ('MR MOURAD QAOUTI', 'DISP.FMSN', 90);
+
+--DPJ
+INSERT INTO benificiaire (nom, fonction, service_id) VALUES
+('MR MOHAMMED BERRADA', 'CHEF DE LA DIVISION DES AFFAIRES PENALES', 10),
+('MR ADAM DIDOUH', 'CHEF DU SERVICE DE L''ANALYSE CRIMINELLE OPERATIONNELLE', 10),
+('MR JAMAL KRIMATE', 'CHEF DE LA DIVISION DE LUTTE CONTRE LA CRIMINALITE FINANCIERE ET ECONOMIQUE', 10),
+('MR ABDERRAFIE HASSANI', 'CHEF DU SERVICE DE SUIVI ET DE COORDINATION', 10),
+('MR TAOUFIQ SAYEGH', 'CHEF DE L''INSTITUT DES SCIENCES FORENSIQUES DE LA SURETE NATIONALE', 10),
+('MR ABDERRAHMANE EL YOUSSFI', 'CHEF DE LA DIVISION TECHNIQUE ET MANAGEMENT DES RISQUES', 10),
+('MR AHMED AIT TALEB', 'CHEF DE LA DIVISION DES STATISTIQUES ET ANALYSE CRIMINELLE', 10),
+('MR RACHID DAHANI', 'CHEF DE LA DIVISION DE LA POLICE CYNOTECHNIQUE', 10),
+('DOMICILE MR DPJ', 'DISPOSITION MR LE DPJ', 10),
+('MR RADOUANE RHAZAL', 'CHEF DU SERVICE DES STATISTIQUES ET ANALYSES STRATEGIQUE', 10),
+('MR ABDE ESSLAM BENALI', 'CHEF DU SERVICE DE LUTTE CONTRE LA MIGRATION IRREGULIERE', 10),
+('MR KHALID EL BAZI', 'CHEF DU SERVICE DE DIFFUSION ET ANIMATION DES RECHERCHES', 10),
+('MR MUSTAPHA HAJJAM', 'CHEF DU BUREAU CENTRAL NATIONAL', 10),
+('MR ABDERRAHIME HABIB', 'CHEF DE LA DIVISION DE LUTTE CONTRE LA CRIMINALITE TRANSNATIONALE', 10),
+('MME ROKIA GHCHIME', 'CHEF DU SERVICE MANAGEMENT DES RISQUES', 10),
+('DISP.SEC', 'DISPOSITION DPJ', 10),
+('MME LAYLA EZZOUINE', 'CHEF DU SERVICE NUMERIQUE FORENSIQUE ET IMAGERIE', 10),
+('MME MERIAMA LARAKI', 'CHEF DU SERVICE DES AFFAIRES PORTANT ATTEINTE A LA FAMILLE ET A LA MORALITE PUBLIQUE', 10),
+('MME DOUNIA MADHY', 'CHEF DU SERVICE DU SUIVI ET DE L''EVALUATION DE LA COOPERATION', 10),
+('MR HOUSINE EL MESTARI', 'CHEF DU SERVICE DE LUTTE CONTRE LE TERRORISME', 10),
+('MME SARA BAZZAZI', 'CHEF DU SERVICE DES ETUDES', 10),
+('MR MOHAMMED BENCHAFFI', 'CHEF DU BUREAU DE LIAISON ARABE', 10),
+('MR MOHAMED EL MACHICHI', 'CHEF DU SERVICE POSTE DE COMMANDEMENT', 10),
+('MR RACHID BELGHITI ALAOUI', 'CHEF DE LA DIVISION CENTRALE DE L''IDENTITE JUDICIAIRE', 10),
+('MR ANASS BEN AZZOUZ', 'CHEF DU SERVICE DE LUTTE CONTRE LA CRIMINALITE ECONOMIQUE', 10),
+('MR ADIL ADKHIS', 'CHEF DU SERVICE DES AFFAIRES PORTANT ATTEINTE AUX BIENS', 10),
+('MR MEDLIASS BELLAMLIH', 'CHEF DU SERVICE DE LA SANTE VETERINAIRE', 10),
+('MR ABDELAZIZ FDAIL', 'CHEF DU SERVICE ANTECEDENTS JUDICIAIRE ET ALIMENTATION', 10),
+('ME MUSTAPHA CHOUAOUTI', 'CHEF DU SERVICE DE LA FORMATION CYNOTECHNIQUE', 11),
+('MR OTHMAN CHERKAOUI', 'CHEF DU SERVICE DE LA LUTTE CONTRE LA CRIMINALITE FINANCIERE', 10),
+('MR HICHAM YACINE', 'CHEF DU SERVICE IDENTIFICATION BIOMETRIQUE', 10),
+('MR FAHD MARZOUKI', 'CHEF DU SERVICE EXPERTISE BALISTIQUE', 10),
+('MME ASMAE ANNA', 'CHEF DU SERVICE FAUX DOCUMENT', 10),
+('MR MUSTAPHA CHADDAD', 'CHEF DU SERVICE DE LUTTE CONTRE LE BLANCHIMENT DE CAPITAUX', 10),
+('MR RACHID ZARKI', 'CHEF DU SERVICE DEVELOPPEMENT DES COMPETENCES ET RECHERCHESCIENTIFIQUE', 10),
+('MR ABDELLAH KAFHAMAM', 'CHEF DU SERVICE DE LUTTE CONTRE LE FAUX MONNAYAGE ET CRIMES LIES AUX MOYENS DE PAIEMENT', 10),
+('MR FOUAD EL ARCHAOUI', 'CHEF DU SERVICE DES AFFAIRES DIVERSES', 10),
+('MR RABIE RHOUAT', 'CHEF DU SERVICE DES AFFAIRES PORTANT ATTEINTE AUX PERSONNES', 10),
+('MR ZAKARIA EJJALTI', 'CHEF DU SERVICE SUIVI OPERATIONNEL ET COORDINATION', 10),
+('MR NAOUFAL BENKIRANE', 'CHEF DU SERVICE DE LUTTE CONTRE LE TRAFIC DE DROGUES', 10),
+('MR SOUFIANE EL HOMRANI', 'CHEF DU SERVICE ADMINISTRATIF ET LOGISTIQUE CYNOTECHNIQUE', 11),
+('MR YOUSSEF NAZIH', 'CHEF DE LA SECTION DU PARC-AUTO CYNOTECHNIQUE', 11),
+('MR THAMIEDDAHANE', 'CHEF DU SERVICE DE SUIVI CYNOTECHNIQUE', 11),
+('MR MOHAMMED BRINETT', 'CHEF DU SERVICE LOGISTIQUE ET APPUI OPERATIONNEL', 11),
+('MME NAJOUA FARAH', 'CHEFFE DU SYSTEME INTEGRE ABHAT', 10),
+('MR ABDERRAHIM BIYI', 'DISP DGSN/DPJ', 10);
 
 --vehicules
 INSERT INTO vehicule (marque, police, nCivil, carburant) VALUES
