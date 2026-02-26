@@ -19,14 +19,14 @@ export default function ApprovisionnementList({ typeFilter: initialTypeFilter = 
   const isAdmin = user?.role === 'ADMIN';
   const queryClient = useQueryClient();
 
-  // Fetch approvisionnements - Get ALL from active dotations
-  const { data: approvisionnements, isLoading } = useQuery({
+  // Fetch approvisionnements
+  const { data: response, isLoading } = useQuery({
     queryKey: ['approvisionnements', typeFilter],
-    queryFn: () => {
-      if (typeFilter === 'all') return approvisionnementService.getList(1, 5000);
-      return approvisionnementService.getList(1, 5000, typeFilter);
-    }
+    queryFn: () => approvisionnementService.getList(1, 5000, typeFilter === 'all' ? null : typeFilter)
   });
+
+  // Extract items from response
+  const approvisionnements = response?.items || [];
 
   // Delete mutation
   const deleteMutation = useMutation({

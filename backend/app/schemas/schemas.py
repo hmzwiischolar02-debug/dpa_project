@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
+from pydantic import BaseModel, Field, field_validator
 
 # ============= Auth Schemas =============
 class UserLogin(BaseModel):
@@ -99,64 +99,11 @@ class DotationDetail(BaseModel):
 
 # ============= Approvisionnement Schemas =============
 class ApprovisionnementSearch(BaseModel):
+    """Schema for searching vehicle by police number"""
     police: str
 
-class ApprovisionnementBase(BaseModel):
-    type_approvi: str = "DOTATION"
-    qte: float = Field(gt=0)
-    km_precedent: int
-    km: int
-    observations: Optional[str] = None
-
-class ApprovisionnementDotationCreate(ApprovisionnementBase):
-    dotation_id: int
-    vhc_provisoire: Optional[str] = None
-    km_provisoire: Optional[int] = None
-
-class ApprovisionnementMissionCreate(ApprovisionnementBase):
-    matricule_conducteur: str
-    service_affecte: str
-    destination: str
-    num_envoi: str
-    police_vehicule: str
-
-class ApprovisionnementDetail(BaseModel):
-    id: int
-    type_approvi: str
-    date: datetime
-    qte: float
-    km_precedent: int
-    km: int
-    anomalie: bool
-    numero_bon: Optional[str]
-    
-    # For DOTATION type
-    police: Optional[str]
-    nCivil: Optional[str]
-    marque: Optional[str]
-    carburant: Optional[str]
-    vehicule_utilise: Optional[str]
-    vhc_provisoire: Optional[str]
-    benificiaire_nom: Optional[str]
-    service_nom: Optional[str]
-    direction: Optional[str]
-    dotation_id: Optional[int]
-    mois: Optional[int]
-    annee: Optional[int]
-    quota: Optional[int]
-    qte_consomme: Optional[float]
-    reste: Optional[float]
-    
-    # For MISSION type
-    matricule_conducteur: Optional[str]
-    service_affecte: Optional[str]
-    destination: Optional[str]
-    num_envoi: Optional[str]
-    police_vehicule: Optional[str]
-    
-    observations: Optional[str]
-
 class VehicleSearchResult(BaseModel):
+    """Result from vehicle search for DOTATION creation"""
     dotation_id: int
     police: str
     nCivil: str
@@ -171,6 +118,70 @@ class VehicleSearchResult(BaseModel):
     qte_consomme: float
     reste: float
     dernier_appro: float
+
+class ApprovisionnementBase(BaseModel):
+    type_approvi: str = "DOTATION"
+    qte: float = Field(gt=0)
+    km_precedent: int
+    km: int
+    observations: Optional[str] = None
+
+class ApprovisionnementDotationCreate(ApprovisionnementBase):
+    """Schema for creating DOTATION approvisionnement"""
+    dotation_id: int
+    vhc_provisoire: Optional[str] = None
+    km_provisoire: Optional[int] = None
+
+class ApprovisionnementMissionCreate(BaseModel):
+    """Schema for creating MISSION approvisionnement"""
+    qte: float = Field(..., gt=0, description="Quantity in liters")
+    km_precedent: int = Field(..., ge=0, description="Previous km")
+    km: int = Field(..., gt=0, description="Current km")
+    matricule_conducteur: str = Field(..., min_length=1, description="Driver ID")
+    service_affecte: str = Field(..., min_length=1, description="Assigned service")
+    destination: str = Field(..., min_length=1, description="Destination city")
+    ordre_mission: str = Field(..., min_length=1, description="Mission order number")
+    police_vehicule: str = Field(..., min_length=1, description="Vehicle police number")
+    observations: Optional[str] = Field(None, description="Optional notes")
+    
+    @field_validator('km')
+    @classmethod
+    def validate_km_greater(cls, v, info):
+        if 'km_precedent' in info.data and v <= info.data['km_precedent']:
+            raise ValueError('km must be greater than km_precedent')
+        return v
+
+class ApprovisionnementDetail(BaseModel):
+    """Detailed approvisionnement info"""
+    id: int
+    type_approvi: str
+    date: datetime
+    qte: float
+    km_precedent: int
+    km: int
+    anomalie: bool = False
+    
+    # DOTATION fields
+    dotation_id: Optional[int] = None
+    vhc_provisoire: Optional[str] = None
+    km_provisoire: Optional[int] = None
+    police: Optional[str] = None
+    benificiaire_nom: Optional[str] = None
+    service_nom: Optional[str] = None
+    
+    # MISSION fields
+    matricule_conducteur: Optional[str] = None
+    service_affecte: Optional[str] = None
+    destination: Optional[str] = None
+    ordre_mission: Optional[str] = None
+    police_vehicule: Optional[str] = None
+    
+    # Common
+    observations: Optional[str] = None
+    numero_bon: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
 
 # ============= Statistics Schemas =============
 class DashboardStats(BaseModel):
