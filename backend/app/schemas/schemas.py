@@ -103,13 +103,17 @@ class ApprovisionnementSearch(BaseModel):
     police: str
 
 class VehicleSearchResult(BaseModel):
-    """Result from vehicle search for DOTATION creation"""
+    """Result from vehicle search for DOTATION creation
+    
+    Updated to allow NULL values for nCivil and km
+    This makes the schema more flexible with existing database data
+    """
     dotation_id: int
     police: str
-    nCivil: str
-    marque: Optional[str]
+    nCivil: Optional[str] = None      # ✅ Allows NULL - won't crash if database has NULL
+    marque: Optional[str] = None
     carburant: str
-    km: int
+    km: Optional[int] = None          # ✅ Allows NULL - won't crash if database has NULL
     benificiaire: str
     fonction: str
     service: str

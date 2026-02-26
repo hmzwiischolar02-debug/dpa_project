@@ -5,6 +5,7 @@ LC_COLLATE = 'en_US.UTF-8'
 LC_CTYPE = 'en_US.UTF-8'
 TEMPLATE = template0;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- ============================================================================
 -- CORE TABLES
 -- ============================================================================
@@ -158,8 +159,8 @@ CREATE TABLE approvisionnement (
     
     -- MISSION specific fields
     matricule_conducteur VARCHAR(50) NULL,
-    service_externe VARCHAR(100) NULL,
-    ville_origine VARCHAR(100) NULL,
+    service_affecte VARCHAR(100) NULL,
+    destination VARCHAR(100) NULL,
     ordre_mission VARCHAR(100) NULL,
     police_vehicule VARCHAR(50) NULL,  -- Vehicle police number for MISSION
     
@@ -174,6 +175,7 @@ CREATE TABLE approvisionnement (
     ),
     FOREIGN KEY (dotation_id) REFERENCES dotation(id) ON DELETE RESTRICT
 );
+
 
 
 -- ============================================================================
@@ -240,8 +242,8 @@ SELECT
     a.anomalie,
     a.observations,
     a.matricule_conducteur,
-    a.service_externe,
-    a.ville_origine,
+    a.service_affecte,
+    a.destination,
     a.ordre_mission,
     a.police_vehicule
 FROM approvisionnement a
@@ -300,10 +302,7 @@ WHERE d.mois = EXTRACT(MONTH FROM CURRENT_DATE)
   AND d.annee = EXTRACT(YEAR FROM CURRENT_DATE)
 ORDER BY d.cloture, d.reste;
 
-select * from dotation
--- ============================================================================
--- TRIGGER FUNCTIONS
--- ============================================================================
+
 -- ============================================================================
 -- TRIGGER FUNCTIONS
 -- ============================================================================
@@ -450,6 +449,7 @@ CREATE TRIGGER trg_close_previous_dotation
     FOR EACH ROW
     EXECUTE FUNCTION close_previous_dotation();
 
+
 -- 6. TRIGGER: Auto-generate numero_bon if not provided
 CREATE OR REPLACE FUNCTION generate_numero_bon()
 RETURNS TRIGGER AS
@@ -507,23 +507,18 @@ CREATE TRIGGER trg_generate_numero_bon
     FOR EACH ROW
     EXECUTE FUNCTION generate_numero_bon();
 
--- ============================================================================
--- SAMPLE DATA (for testing - remove in production)
--- ============================================================================
-
--- Insert sample users
 INSERT INTO users (username, password, role) VALUES
 ('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ADMIN'), -- password: password
 ('agent1', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'AGENT');
 INSERT INTO users (username, password, role) VALUES
 ('admin1', 'admin123', 'ADMIN'); -- password: password
-('agent1', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'AGENT');
-
 INSERT INTO service (nom, direction) VALUES
 ('CABINET', 'CABINET'),('PCD', 'CABINET'),('ISS', 'CABINET'),('PAD', 'CABINET'),('ROYAL', 'CABINET'),('TGR', 'CABINET'),('REVUE POLICE', 'CABINET'),('DRH', 'DRH'),('DRG', 'DRG'),
 ('DPJ', 'DPJ'),('DPC', 'DPJ'),('DSIC', 'DSIC'),('IG', 'IG'),('DSP', 'DSP'),('GMS99', 'DSP'),('DEB', 'DEB'),('DGP', 'DEB'),('DPA', 'DEB'),('DM', 'DEB'),('DF', 'DEB'),('SAA', 'DEB'),('SG', 'DEB'),
 ('DPA/FC', 'DEB'),('DM/MAG', 'DEB'),('DM/SAMS', 'DEB'),('FMSN', 'FMSN'),('PP LAAYOUNE', 'PP');
-select * from service
+
+
+
 INSERT INTO benificiaire (matricule, nom, fonction, service_id)
 SELECT NULL, v.nom, v.fonction, s.id
 FROM (VALUES
@@ -617,9 +612,7 @@ FROM (VALUES
 ('MR ABDESSALAM BELMOKHTAR','DISP.DEB/DM/SAMS','DM/SAMS')
 ) AS v(nom, fonction, service_nom)
 JOIN service s ON s.nom = v.service_nom;
-select * from service
-select COUNT(*) from benificiaire
-select * from vehicule
+
 --CABINET
 INSERT INTO benificiaire (nom, fonction, service_id) VALUES
 ('MR ABDELLAH AAMOUD', 'CABINET ROYAL', 5),
@@ -886,7 +879,6 @@ INSERT INTO benificiaire (nom, fonction, service_id) VALUES
 ('MR MOHAMMED BRINETT', 'CHEF DU SERVICE LOGISTIQUE ET APPUI OPERATIONNEL', 11),
 ('MME NAJOUA FARAH', 'CHEFFE DU SYSTEME INTEGRE ABHAT', 10),
 ('MR ABDERRAHIM BIYI', 'DISP DGSN/DPJ', 10);
-
 
 --vehicules
 INSERT INTO vehicule (marque, police, nCivil, carburant) VALUES
@@ -1234,7 +1226,3 @@ INSERT INTO vehicule (marque, police, nCivil, carburant) VALUES
 ('RYMCO', '100616', NULL, 'essence'),
 ('BECANE', '105057', NULL, 'essence'),
 ('BECANE', '105049', NULL, 'essence');
-
-
-
-select * from vehicule
