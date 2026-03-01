@@ -33,19 +33,24 @@ export default function Mission() {
       setFormData(prev => ({
         ...prev,
         police_vehicule: data.police,
-        km_precedent: data.km.toString(),
+        km_precedent: (data.km || 0).toString(),  // ✅ Handle NULL km
         matricule_conducteur: data.matricule_conducteur || prev.matricule_conducteur
       }));
 
       if (data.matricule_conducteur) {
         toast.success(`Véhicule trouvé: ${data.police} - ${data.marque || 'N/A'} | Bénéficiaire: ${data.benificiaire_nom} (${data.matricule_conducteur})`);
       } else {
-        toast.success(`Véhicule trouvé: ${data.police} - ${data.marque || 'N/A'} (KM: ${data.km})`);
+        toast.success(`Véhicule trouvé: ${data.police} - ${data.marque || 'N/A'} (KM: ${data.km || 0})`);
       }
     },
     onError: (error) => {
       setVehicleData(null);
-      toast.error(error.response?.data?.detail || 'Véhicule non trouvé ou inactif');
+      const errorMsg = error.response?.data?.detail || 'Véhicule non trouvé ou inactif';
+      // ✅ Convert to string if it's an array or object
+      const displayMsg = Array.isArray(errorMsg) 
+        ? errorMsg.map(e => e.msg || e).join(', ')
+        : String(errorMsg);
+      toast.error(displayMsg);
     }
   });
 
@@ -78,7 +83,7 @@ export default function Mission() {
           benificiaire_nom: variables.matricule_conducteur,
           service_nom: variables.service_affecte,
           direction: vehicleData?.direction || '',
-          num_envoi: variables.num_envoi,
+          ordre_mission: variables.ordre_mission,  // ✅ Use ordre_mission for PDF
           service_affecte: variables.service_affecte,
           destination: variables.destination,
           qte: parseFloat(variables.qte),
@@ -104,7 +109,12 @@ export default function Mission() {
       });
     },
     onError: (error) => {
-      toast.error(error.response?.data?.detail || 'Erreur lors de l\'enregistrement');
+      const errorMsg = error.response?.data?.detail || 'Erreur lors de l\'enregistrement';
+      // ✅ Convert to string if it's an array or object
+      const displayMsg = Array.isArray(errorMsg) 
+        ? errorMsg.map(e => e.msg || e).join(', ')
+        : String(errorMsg);
+      toast.error(displayMsg);
     }
   });
 
@@ -164,7 +174,7 @@ export default function Mission() {
       matricule_conducteur: formData.matricule_conducteur,
       service_affecte: formData.service_affecte,
       destination: formData.destination,
-      num_envoi: formData.num_envoi,
+      ordre_mission: formData.num_envoi,  // ✅ FIXED: Use ordre_mission instead of num_envoi
       police_vehicule: formData.police_vehicule,
       observations: formData.observations || null
     });
@@ -305,7 +315,7 @@ export default function Mission() {
                   <div><span className="text-gray-500">Police:</span> <strong>{vehicleData.police}</strong></div>
                   <div><span className="text-gray-500">Marque:</span> <strong>{vehicleData.marque || 'N/A'}</strong></div>
                   <div><span className="text-gray-500">Carburant:</span> <strong>{vehicleData.carburant}</strong></div>
-                  <div><span className="text-gray-500">Dernier KM:</span> <strong>{vehicleData.km}</strong></div>
+                  <div><span className="text-gray-500">Dernier KM:</span> <strong>{vehicleData.km || 0}</strong></div>
                 </div>
                 {vehicleData.matricule_conducteur && (
                   <div className="mt-2 pt-2 border-t border-green-200 flex items-center gap-2 text-sm">

@@ -27,12 +27,17 @@ export default function Approvisionnement() {
       setVehicleData(data);
       setFormData(prev => ({
         ...prev,
-        km: data.km  // Initialize with current km + 1
+        km: data.km || 0  // ✅ Handle NULL km
       }));
     },
     onError: (error) => {
       setVehicleData(null);
-      toast.error(error.response?.data?.detail || 'Véhicule non trouvé');
+      const errorMsg = error.response?.data?.detail || 'Véhicule non trouvé';
+      // Convert to string if it's an array or object
+      const displayMsg = Array.isArray(errorMsg) 
+        ? errorMsg.map(e => e.msg || e).join(', ')
+        : String(errorMsg);
+      toast.error(displayMsg);
     }
   });
 
@@ -55,7 +60,7 @@ export default function Approvisionnement() {
             chef_fonction: vehicleData.fonction || '',
             chef_nom: vehicleData.benificiaire || '',
             qte: parseFloat(formData.qte),
-            km_precedent: vehicleData.km,
+            km_precedent: vehicleData.km || 0,
             km: parseInt(formData.km),
             quota: vehicleData.quota,
             qte_consomme: newConsumed,
@@ -88,7 +93,12 @@ export default function Approvisionnement() {
       });
     },
     onError: (error) => {
-      toast.error(error.response?.data?.detail || 'Erreur lors de l\'ajout');
+      const errorMsg = error.response?.data?.detail || 'Erreur lors de l\'ajout';
+      // Convert to string if it's an array or object
+      const displayMsg = Array.isArray(errorMsg) 
+        ? errorMsg.map(e => e.msg || e).join(', ')
+        : String(errorMsg);
+      toast.error(displayMsg);
     }
   });
 
@@ -144,7 +154,7 @@ export default function Approvisionnement() {
       createMutation.mutate({
         dotation_id: vehicleData.dotation_id,
         qte,
-        km_precedent: vehicleData.km,
+        km_precedent: vehicleData.km || 0,  // ✅ Handle NULL km
         km, // This is just for record, no validation
         vhc_provisoire: formData.vhc_provisoire,
         km_provisoire: parseInt(formData.km_provisoire),
@@ -155,11 +165,12 @@ export default function Approvisionnement() {
 
     // LOGIC FOR MAIN VEHICLE (NORMAL FLOW)
     // CHECK: KM less than previous KM (vehicle breakdown case)
-    if (km < vehicleData.km) {
-      const kmDifference = vehicleData.km - km;
+    const previousKm = vehicleData.km || 0;  // ✅ Handle NULL km
+    if (km < previousKm) {
+      const kmDifference = previousKm - km;
       const confirmMessage = `⚠️ ATTENTION: Kilométrage Inférieur\n\n` +
         `KM actuel: ${km}\n` +
-        `KM précédent: ${vehicleData.km}\n` +
+        `KM précédent: ${previousKm}\n` +
         `Différence: -${kmDifference} km\n\n` +
         `Cela indique généralement une panne du véhicule.\n\n` +
         `Avez-vous ajouté une observation expliquant cette situation ?`;
@@ -182,7 +193,7 @@ export default function Approvisionnement() {
     createMutation.mutate({
       dotation_id: vehicleData.dotation_id,
       qte,
-      km_precedent: vehicleData.km,
+      km_precedent: vehicleData.km || 0,  // ✅ Handle NULL km
       km,
       vhc_provisoire: null,
       km_provisoire: null,
@@ -378,12 +389,12 @@ export default function Approvisionnement() {
                       value={formData.km}
                       onChange={(e) => setFormData({...formData, km: e.target.value})}
                       className="input-field"
-                      placeholder={`Supérieur à ${vehicleData.km}`}
+                      placeholder={`Supérieur à ${vehicleData.km || 0}`}
                       required
                       disabled={!!formData.vhc_provisoire}
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      KM précédent: {vehicleData.km}
+                      KM précédent: {vehicleData.km || 0}
                     </p>
                   </div>
 
@@ -403,7 +414,7 @@ export default function Approvisionnement() {
                           ...formData, 
                           vhc_provisoire: newValue,
                           // Auto-set normal KM to km_precedent when provisoire is entered
-                          km: newValue ? vehicleData.km : (formData.km || vehicleData.km)
+                          km: newValue ? (vehicleData.km || 0) : (formData.km || vehicleData.km || 0)
                         });
                       }}
                       className="input-field"
@@ -450,7 +461,7 @@ export default function Approvisionnement() {
                 <div>
                   <label className="label">
                     Observations 
-                    {!formData.vhc_provisoire && formData.km && vehicleData && parseInt(formData.km) < vehicleData.km && (
+                    {!formData.vhc_provisoire && formData.km && vehicleData && parseInt(formData.km) < (vehicleData.km || 0) && (
                       <span className="text-red-500"> * (Obligatoire - KM inférieur détecté)</span>
                     )}
                   </label>
@@ -459,7 +470,7 @@ export default function Approvisionnement() {
                     value={formData.observations}
                     onChange={(e) => setFormData({...formData, observations: e.target.value})}
                     className={`input-field ${
-                      !formData.vhc_provisoire && formData.km && vehicleData && parseInt(formData.km) < vehicleData.km 
+                      !formData.vhc_provisoire && formData.km && vehicleData && parseInt(formData.km) < (vehicleData.km || 0)
                         ? 'border-red-300 ring-2 ring-red-200' 
                         : ''
                     }`}
@@ -467,15 +478,15 @@ export default function Approvisionnement() {
                     placeholder={
                       formData.vhc_provisoire
                         ? "Raison de l'utilisation du véhicule provisoire (optionnel, sera ajouté automatiquement)..."
-                        : formData.km && vehicleData && parseInt(formData.km) < vehicleData.km
+                        : formData.km && vehicleData && parseInt(formData.km) < (vehicleData.km || 0)
                         ? "OBLIGATOIRE: Expliquer pourquoi le kilométrage est inférieur (ex: panne moteur, réparation au garage, compteur défectueux...)"
                         : "Remarques éventuelles..."
                     }
                   />
-                  {!formData.vhc_provisoire && formData.km && vehicleData && parseInt(formData.km) < vehicleData.km && (
+                  {!formData.vhc_provisoire && formData.km && vehicleData && parseInt(formData.km) < (vehicleData.km || 0) && (
                     <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
                       <span>⚠️</span>
-                      <span>Veuillez expliquer pourquoi le kilométrage ({formData.km} km) est inférieur au précédent ({vehicleData.km} km)</span>
+                      <span>Veuillez expliquer pourquoi le kilométrage ({formData.km} km) est inférieur au précédent ({vehicleData.km || 0} km)</span>
                     </p>
                   )}
                   {formData.vhc_provisoire && (
