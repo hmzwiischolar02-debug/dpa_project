@@ -82,12 +82,17 @@ async def get_consommation_par_carburant(current_user: dict = Depends(get_curren
     """Get consumption by fuel type (DOTATION only)"""
     with get_db() as conn:
         cur = get_db_cursor(conn)
+        # ✅ FIXED: Query tables directly instead of using v_appro_dotation view
         cur.execute("""
             SELECT 
-                carburant,
-                SUM(qte) as total
-            FROM v_appro_dotation
-            GROUP BY carburant
+                v.carburant,
+                SUM(a.qte) as total
+            FROM approvisionnement a
+            JOIN dotation d ON a.dotation_id = d.id
+            JOIN vehicule v ON d.vehicule_id = v.id
+            WHERE a.type_approvi = 'DOTATION'
+            GROUP BY v.carburant
+            ORDER BY total DESC
         """)
         results = cur.fetchall()
         
@@ -98,13 +103,18 @@ async def get_consommation_par_service(current_user: dict = Depends(get_current_
     """Get consumption by service (DOTATION only)"""
     with get_db() as conn:
         cur = get_db_cursor(conn)
+        # ✅ FIXED: Query tables directly instead of using v_appro_dotation view
         cur.execute("""
             SELECT 
-                service_nom as service,
-                service_direction as direction,
-                SUM(qte) as total
-            FROM v_appro_dotation
-            GROUP BY service_nom, service_direction
+                s.nom as service,
+                s.direction,
+                SUM(a.qte) as total
+            FROM approvisionnement a
+            JOIN dotation d ON a.dotation_id = d.id
+            JOIN benificiaire b ON d.benificiaire_id = b.id
+            JOIN service s ON b.service_id = s.id
+            WHERE a.type_approvi = 'DOTATION'
+            GROUP BY s.nom, s.direction
             ORDER BY total DESC
         """)
         results = cur.fetchall()

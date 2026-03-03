@@ -108,6 +108,26 @@ async def create_dotation_approvisionnement(
             result = cur.fetchone()
             appro_id = result['id']
             
+            # If provisoire vehicle is used AND km_provisoire is provided
+            # Try to update the provisoire vehicle's KM in the database
+            if appro.vhc_provisoire and appro.km_provisoire:
+                try:
+                    cur.execute("""
+                        UPDATE vehicule 
+                        SET km = %s 
+                        WHERE police = %s
+                        RETURNING id
+                    """, (appro.km_provisoire, appro.vhc_provisoire))
+                    
+                    updated = cur.fetchone()
+                    if updated:
+                        print(f"✅ Updated provisoire vehicle {appro.vhc_provisoire} KM to {appro.km_provisoire}")
+                    else:
+                        print(f"ℹ️ Provisoire vehicle {appro.vhc_provisoire} not found in DB - continuing without update")
+                except Exception as e:
+                    # Don't fail the entire operation if provisoire update fails
+                    print(f"⚠️ Could not update provisoire vehicle KM: {str(e)}")
+            
             # Auto-close dotation if quota reached
             cur.execute("""
                 UPDATE dotation
@@ -155,8 +175,8 @@ async def create_mission_approvisionnement(
                 appro.km_precedent,
                 appro.km,
                 appro.matricule_conducteur,
-                appro.service_affecte,
-                appro.destination,
+                appro.service_externe,
+                appro.ville_origine,
                 appro.ordre_mission,
                 appro.police_vehicule,
                 appro.observations
@@ -186,7 +206,7 @@ async def list_approvisionnements(
     annee: int = None,
     current_user: dict = Depends(get_current_user)
 ):
-    """List all approvisionnements with filters and pagination"""
+    """List all approvisionnements with filters and pagination - WITH JOINED DATA including marque and ncivil"""
     with get_db() as conn:
         cur = get_db_cursor(conn)
         
@@ -216,13 +236,18 @@ async def list_approvisionnements(
         where_clause = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
         
         # Count total
-        count_query = f"SELECT COUNT(*) as total FROM approvisionnement a {where_clause}"
+        count_query = f"""
+            SELECT COUNT(*) as total 
+            FROM approvisionnement a
+            LEFT JOIN dotation d ON a.dotation_id = d.id AND a.type_approvi = 'DOTATION'
+            {where_clause}
+        """
         cur.execute(count_query, params)
         total = cur.fetchone()['total']
         
-        # Get paginated results with JOINs for DOTATION details
+        # Get paginated results WITH JOINS - including ncivil and marque
         offset = (page - 1) * per_page
-        cur.execute(f"""
+        list_query = f"""
             SELECT 
                 a.id,
                 a.type_approvi,
@@ -235,16 +260,20 @@ async def list_approvisionnements(
                 a.vhc_provisoire,
                 a.km_provisoire,
                 a.matricule_conducteur,
-                a.service_affecte,
-                a.destination,
+                a.service_affecte as service_externe,
+                a.destination as ville_origine,
                 a.ordre_mission,
-                a.police_vehicule,
                 a.observations,
                 a.numero_bon,
-                -- DOTATION related fields (NULL for MISSION)
+                v.ncivil,
+                v.marque,
+                v.carburant,
                 v.police,
+                a.police_vehicule,
                 b.nom as benificiaire_nom,
-                s.nom as service_nom
+                s.nom as service_nom,
+                b.fonction,
+                s.direction
             FROM approvisionnement a
             LEFT JOIN dotation d ON a.dotation_id = d.id
             LEFT JOIN vehicule v ON d.vehicule_id = v.id
@@ -253,7 +282,8 @@ async def list_approvisionnements(
             {where_clause}
             ORDER BY a.date DESC, a.id DESC
             LIMIT %s OFFSET %s
-        """, params + [per_page, offset])
+        """
+        cur.execute(list_query, params + [per_page, offset])
         
         results = cur.fetchall()
         return {
@@ -263,42 +293,6 @@ async def list_approvisionnements(
             "total": total,
             "pages": (total + per_page - 1) // per_page if total > 0 else 0
         }
-
-@router.get("/by-dotation/{dotation_id}", response_model=List[dict])
-async def get_approvisionnements_by_dotation(
-    dotation_id: int,
-    current_user: dict = Depends(get_current_user)
-):
-    """Get all approvisionnements for a specific dotation"""
-    with get_db() as conn:
-        cur = get_db_cursor(conn)
-        cur.execute("""
-            SELECT 
-                a.id,
-                a.type_approvi,
-                a.date,
-                a.qte,
-                a.km_precedent,
-                a.km,
-                a.anomalie,
-                a.vhc_provisoire,
-                a.km_provisoire,
-                a.observations,
-                a.numero_bon,
-                v.police,
-                b.nom as benificiaire_nom,
-                s.nom as service_nom
-            FROM approvisionnement a
-            LEFT JOIN dotation d ON a.dotation_id = d.id
-            LEFT JOIN vehicule v ON d.vehicule_id = v.id
-            LEFT JOIN benificiaire b ON d.benificiaire_id = b.id
-            LEFT JOIN service s ON b.service_id = s.id
-            WHERE a.dotation_id = %s
-            ORDER BY a.date DESC, a.id DESC
-        """, (dotation_id,))
-        
-        results = cur.fetchall()
-        return [dict(r) for r in results]
 
 @router.get("/dotation-list", response_model=List[dict])
 async def list_dotation_approvisionnements(
@@ -310,7 +304,8 @@ async def list_dotation_approvisionnements(
         cur.execute("""
             SELECT 
                 a.id, a.type_approvi, a.date, a.qte, a.km_precedent, a.km,
-                v.police, b.nom as benificiaire_nom, s.nom as service_nom
+                v.police, v.ncivil, v.marque, v.carburant,
+                b.nom as benificiaire_nom, s.nom as service_nom
             FROM approvisionnement a
             LEFT JOIN dotation d ON a.dotation_id = d.id
             LEFT JOIN vehicule v ON d.vehicule_id = v.id
@@ -333,7 +328,8 @@ async def list_mission_approvisionnements(
         cur.execute("""
             SELECT 
                 id, type_approvi, date, qte, km_precedent, km,
-                police_vehicule, matricule_conducteur, service_affecte, destination
+                police_vehicule, matricule_conducteur, 
+                service_affecte as service_externe
             FROM approvisionnement
             WHERE type_approvi = 'MISSION'
             ORDER BY date DESC
@@ -364,3 +360,99 @@ async def delete_approvisionnement(
         
         conn.commit()
         return {"success": True, "message": "Approvisionnement supprimé"}
+
+@router.get("/by-dotation/{dotation_id}", response_model=List[dict])
+async def get_approvisionnements_by_dotation(
+    dotation_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all approvisionnements for a specific dotation"""
+    with get_db() as conn:
+        cur = get_db_cursor(conn)
+        cur.execute("""
+            SELECT 
+                a.id, a.type_approvi, a.date, a.qte, a.km_precedent, a.km,
+                a.vhc_provisoire, a.km_provisoire, a.observations,
+                v.police, v.ncivil, v.marque, v.carburant,
+                b.nom as benificiaire_nom,
+                s.nom as service_nom
+            FROM approvisionnement a
+            JOIN dotation d ON a.dotation_id = d.id
+            JOIN vehicule v ON d.vehicule_id = v.id
+            JOIN benificiaire b ON d.benificiaire_id = b.id
+            JOIN service s ON b.service_id = s.id
+            WHERE a.dotation_id = %s
+            ORDER BY a.date DESC
+        """, (dotation_id,))
+        results = cur.fetchall()
+        return [dict(r) for r in results]
+
+@router.get("/last-km/{police}")
+async def get_last_km_for_vehicle(
+    police: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get the last recorded KM for a vehicle by police number"""
+    with get_db() as conn:
+        cur = get_db_cursor(conn)
+        
+        # Try to find from DOTATION approvisionnements first
+        cur.execute("""
+            SELECT a.km
+            FROM approvisionnement a
+            JOIN dotation d ON a.dotation_id = d.id
+            JOIN vehicule v ON d.vehicule_id = v.id
+            WHERE v.police = %s AND a.type_approvi = 'DOTATION'
+            ORDER BY a.date DESC, a.id DESC
+            LIMIT 1
+        """, (police,))
+        
+        result = cur.fetchone()
+        
+        if result:
+            return {
+                "police": police,
+                "last_km": result['km'],
+                "source": "dotation"
+            }
+        
+        # If not found in dotation, try MISSION approvisionnements
+        cur.execute("""
+            SELECT km
+            FROM approvisionnement
+            WHERE police_vehicule = %s AND type_approvi = 'MISSION'
+            ORDER BY date DESC, id DESC
+            LIMIT 1
+        """, (police,))
+        
+        result = cur.fetchone()
+        
+        if result:
+            return {
+                "police": police,
+                "last_km": result['km'],
+                "source": "mission"
+            }
+        
+        # If still not found, try from vehicule table
+        cur.execute("""
+            SELECT km
+            FROM vehicule
+            WHERE police = %s
+        """, (police,))
+        
+        result = cur.fetchone()
+        
+        if result:
+            return {
+                "police": police,
+                "last_km": result['km'],
+                "source": "vehicule"
+            }
+        
+        # Not found anywhere
+        return {
+            "police": police,
+            "last_km": None,
+            "source": None
+        }

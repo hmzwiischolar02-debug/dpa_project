@@ -2,10 +2,19 @@ import api from './api';
 
 export const approvisionnementService = {
   /**
-   * Search for vehicle by police number
+   * Search for vehicle by police number (DOTATION - requires active dotation)
    */
   async searchVehicle(police) {
     const response = await api.post('/approvisionnement/search', { police });
+    return response.data;
+  },
+
+  /**
+   * Search for vehicle by police number (MISSION - no dotation required)
+   * ✅ NEW: For MISSION page - works with ANY active vehicle
+   */
+  async searchVehicleMission(police) {
+    const response = await api.post('/approvisionnement/search-mission', { police });
     return response.data;
   },
 
@@ -16,7 +25,7 @@ export const approvisionnementService = {
     const response = await api.post('/approvisionnement/dotation', {
       type_approvi: 'DOTATION',
       ...data
-    });
+    })
     return response.data;
   },
 

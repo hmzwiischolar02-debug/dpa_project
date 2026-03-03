@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search, Fuel, CheckCircle, AlertCircle, Plus, ArrowLeft } from 'lucide-react';
 import { approvisionnementService } from '../services/approvisionnement';
-import ApprovisionnementList from '../components/ApprovisionnementList';
+import ApprovisionnementList from '../components/Approvisionnementlist';
 import toast from 'react-hot-toast';
 import { printApprovisionnementPDF } from '../utils/Printapprovisionnement';
 
@@ -65,10 +65,10 @@ export default function Approvisionnement() {
             quota: vehicleData.quota,
             qte_consomme: newConsumed,
             reste: newRest,
-            police: vehicleData.police,
-            nCivil: vehicleData.nCivil || '',
-            marque: vehicleData.marque,
-            carburant: vehicleData.carburant,
+            police: data?.police || vehicleData.police,
+            nCivil: data?.nCivil || vehicleData.nCivil || '',  // ✅ Use response first
+            marque: data?.marque || vehicleData.marque,  // ✅ Use response first
+            carburant: data?.carburant || vehicleData.carburant,  // ✅ Use response first
             benificiaire_nom: vehicleData.benificiaire,
             fonction: vehicleData.fonction,
             service_nom: vehicleData.service,
